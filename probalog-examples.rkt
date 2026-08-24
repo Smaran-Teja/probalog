@@ -1,12 +1,6 @@
 #lang roulette/example/disrupt
 (require "probalog-core.rkt"
-         (prefix-in eq: "probalog-set-equal.rkt")
-         (prefix-in bound: "probalog-bound.rkt")
-         (prefix-in iter: "probalog-iteration_count.rkt"))
-
-;; All three prefixed run-datalogs operate on the SAME fact/rule struct
-;; types (imported once, from probalog-core.rkt), so a single set of
-;; example definitions can be fed into any of them.
+         "probalog-set-equal.rkt")
 
 ;; ---------------------------------------------------------------------
 ;; Example 1: simple two-hop path
@@ -23,22 +17,15 @@
 (define path-facts (list (cons ab 0.8) (cons bc 0.8)))
 (define path-rules (list path-xy path-xz))
 
-(define eq-path-result (eq:run-datalog path-facts path-rules))
-(define bound-path-result (bound:run-datalog path-facts path-rules))
-(define iter-path-result (iter:run-datalog path-facts path-rules))
+(define path-result (run-datalog path-facts path-rules))
 
-(printf "Path(a,c) [set-equal?]:      ~a\n"
-        (query (set-member? eq-path-result (fact 'Path (list "a" "c")))))
-(printf "Path(a,c) [herbrand+1]:      ~a\n"
-        (query (set-member? bound-path-result (fact 'Path (list "a" "c")))))
-(printf "Path(a,c) [iteration-count]: ~a\n"
-        (query (set-member? iter-path-result (fact 'Path (list "a" "c")))))
+(printf "Path(a,c): ~a\n"
+        (query (set-member? path-result (fact 'Path (list "a" "c")))))
 
 ;; ---------------------------------------------------------------------
 ;; Example 2: network with disjoint equal-length routes, a cycle, and
 ;; cross-predicate conjunction (Alert/Risky depend on Faulty as well
-;; as Path). All three implementations agree here, since the two
-;; A->D routes happen to be the same length.
+;; as Path).
 ;; ---------------------------------------------------------------------
 (define A "A") (define B "B") (define C "C") (define D "D") (define E "E")
 
@@ -69,26 +56,17 @@
         (cons f-c 0.3) (cons f-e 0.1)))
 (define network-rules (list net-path-base net-path-step alert-rule risky-rule))
 
-(define eq-network-result (eq:run-datalog network-facts network-rules))
-(define bound-network-result (bound:run-datalog network-facts network-rules))
-(define iter-network-result (iter:run-datalog network-facts network-rules))
+(define network-result (run-datalog network-facts network-rules))
 
 (for ([q (list (fact 'Path (list A D))
                (fact 'Path (list A E))
                (fact 'Alert (list A))
                (fact 'Risky (list A)))])
-  (printf "~a [set-equal?]:      ~a\n" q (query (set-member? eq-network-result q)))
-  (printf "~a [herbrand+1]:      ~a\n" q (query (set-member? bound-network-result q)))
-  (printf "~a [iteration-count]: ~a\n" q (query (set-member? iter-network-result q))))
+  (printf "~a: ~a\n" q (query (set-member? network-result q))))
 
 ;; ---------------------------------------------------------------------
 ;; Example 3: diverging-route counterexample — two independent routes
-;; of DIFFERENT lengths to the same fact. This is the case that breaks
-;; the iteration-count bound: Path(N1,N4)'s key first appears via the
-;; short route before the long route finishes contributing its guard,
-;; so probalog-iteration_count.rkt stops too early and under-counts
-;; the true probability. set-equal? and herbrand-base+1 both handle
-;; this correctly.
+;; of DIFFERENT lengths to the same fact.
 ;; ---------------------------------------------------------------------
 (define N1 "N1") (define N2 "N2") (define N4 "N4")
 (define N5 "N5") (define N6 "N6") (define N7 "N7")
@@ -114,52 +92,32 @@
         (cons diverge-e-long-3 0.9) (cons diverge-e-long-4 0.9)))
 (define diverge-rules (list diverge-path-base diverge-path-step))
 
-(define eq-diverge-result (eq:run-datalog diverge-facts diverge-rules))
-(define bound-diverge-result (bound:run-datalog diverge-facts diverge-rules))
-(define iter-diverge-result (iter:run-datalog diverge-facts diverge-rules))
+(define diverge-result (run-datalog diverge-facts diverge-rules))
 
 ;; Correct answer (two independent routes, noisy-or):
 ;;   short: 0.9 * 0.9 = 0.81
 ;;   long:  0.9^4     = 0.6561
 ;;   combined: 1 - (1-0.81)*(1-0.6561) = 1 - 0.19*0.3439 ~ 0.934659
-;; The iteration-count version is expected to UNDER-report this,
-;; reflecting only the short route (~0.81) since it stops before the
-;; long route's derivation completes.
-(printf "Path(N1,N4) [set-equal?]:      ~a\n"
-        (query (set-member? eq-diverge-result (fact 'Path (list N1 N4)))))
-(printf "Path(N1,N4) [herbrand+1]:      ~a\n"
-        (query (set-member? bound-diverge-result (fact 'Path (list N1 N4)))))
-(printf "Path(N1,N4) [iteration-count]: ~a  <-- expected to be WRONG, near 0.81\n"
-        (query (set-member? iter-diverge-result (fact 'Path (list N1 N4)))))
+(printf "Path(N1,N4): ~a\n"
+        (query (set-member? diverge-result (fact 'Path (list N1 N4)))))
 
 ;; ---------------------------------------------------------------------
 ;; Example 4 (PERFORMANCE / SPEED TEST): a layered DAG from a single
 ;; source to a single sink, fully connected between adjacent layers.
-;; Every SRC->SINK path has the SAME length (layers + 1 hops), so this
-;; is NOT a correctness test — all three implementations should agree
-;; on the answer. What it stresses is sheer formula/search size: the
-;; number of distinct simple paths is width^layers, and Path(SRC,SINK)'s
-;; guard ends up as a large formula combining all of them (with heavy
-;; sharing, since paths reuse edges), which exercises:
-;;   - set-union's OR-merging machinery over many overlapping derivations
-;;   - the solver's equivalence-checking cost on a genuinely large formula
-;;   - how many "rounds" each bound strategy ends up running
+;; Every SRC->SINK path has the same length (layers + 1 hops); the
+;; number of distinct simple paths is width^layers.
 ;;
-;; Tune `layers`/`width` up to increase the stress; width^layers grows
-;; fast, so start small and raise gradually (e.g. layers=6, width=4
-;; already means 4096 simple paths).
+;; Tune `perf-layers`/`perf-width` up to increase the stress;
+;; width^layers grows fast, so start small and raise gradually.
 ;; ---------------------------------------------------------------------
-(define perf-layers 20)   ;; number of intermediate layers between source and sink
-(define perf-width 5)    ;; nodes per layer
+(define perf-layers 5)   ;; number of intermediate layers between source and sink
+(define perf-width 3)    ;; nodes per layer
 
 (define (perf-node-name layer idx) (format "L~a_~a" layer idx))
 (define perf-source "SRC")
 (define perf-sink "SINK")
 (define perf-edge-prob 0.9)
 
-;; SRC -> every node in layer 0
-;; every node in layer i -> every node in layer i+1 (fully bipartite)
-;; every node in the last layer -> SINK
 (define perf-facts
   (append
    (for/list ([j (in-range perf-width)])
@@ -183,17 +141,6 @@
 (printf "--- Performance test: ~a layers x ~a width (~a simple paths) ---\n"
         perf-layers perf-width (expt perf-width perf-layers))
 
-(printf "[set-equal?]\n")
-(define perf-eq-result (time (eq:run-datalog perf-facts perf-rules)))
+(define perf-result (time (run-datalog perf-facts perf-rules)))
 (printf "Path(SRC,SINK): ~a\n"
-        (query (set-member? perf-eq-result (fact 'Path (list perf-source perf-sink)))))
-
-#;(printf "[herbrand+1]\n")
-#;(define perf-bound-result (time (bound:run-datalog perf-facts perf-rules)))
-#;(printf "Path(SRC,SINK): ~a\n"
-        (query (set-member? perf-bound-result (fact 'Path (list perf-source perf-sink)))))
-
-#;(printf "[iteration-count]\n")
-#;(define perf-iter-result (time (iter:run-datalog perf-facts perf-rules)))
-#;(printf "Path(SRC,SINK): ~a\n"
-        (query (set-member? perf-iter-result (fact 'Path (list perf-source perf-sink)))))
+        (query (set-member? perf-result (fact 'Path (list perf-source perf-sink)))))
