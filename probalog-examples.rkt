@@ -149,8 +149,8 @@
 ;; fast, so start small and raise gradually (e.g. layers=6, width=4
 ;; already means 4096 simple paths).
 ;; ---------------------------------------------------------------------
-(define perf-layers 30)   ;; number of intermediate layers between source and sink
-(define perf-width 2)    ;; nodes per layer
+(define perf-layers 20)   ;; number of intermediate layers between source and sink
+(define perf-width 5)    ;; nodes per layer
 
 (define (perf-node-name layer idx) (format "L~a_~a" layer idx))
 (define perf-source "SRC")
