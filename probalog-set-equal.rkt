@@ -3,11 +3,17 @@
 (provide run-datalog)
 
 ;; Loop immediate-prob (semi-naive: full db + last round's delta) until
-;; set-equal? (solver-backed logical equivalence of guards, not just
-;; key membership) reports no change to the full db.
+;; the guards stop changing. Rather than comparing every key in the
+;; database (set-equal?), we only need to check keys that this round's
+;; delta actually touched — any key immediate-prob didn't union new
+;; content into is guaranteed to be identical in next-full and full
+;; already, so checking it would just be a solver call with a foregone
+;; conclusion. This cuts the number of Z3 calls per round roughly in
+;; proportion to how small the delta is relative to the whole database.
 (define (saturate-prob full delta rules)
   (define-values (next-full next-delta) (immediate-prob full delta rules))
-  (if (set-equal? next-full full)
+  (define changed-keys (map car (set-fact-guards next-delta)))
+  (if (set-equal? next-full full changed-keys)
       full
       (saturate-prob next-full next-delta rules)))
 

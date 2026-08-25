@@ -110,8 +110,8 @@
 ;; Tune `perf-layers`/`perf-width` up to increase the stress;
 ;; width^layers grows fast, so start small and raise gradually.
 ;; ---------------------------------------------------------------------
-(define perf-layers 5)   ;; number of intermediate layers between source and sink
-(define perf-width 3)    ;; nodes per layer
+(define perf-layers 40)   ;; number of intermediate layers between source and sink
+(define perf-width 2)    ;; nodes per layer
 
 (define (perf-node-name layer idx) (format "L~a_~a" layer idx))
 (define perf-source "SRC")

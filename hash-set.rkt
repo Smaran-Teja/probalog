@@ -180,13 +180,12 @@
 
  (define total-my-hash-equal?-time 0.0)
 
-(define (my-hash-equal? ht1 ht2)
-  (define ht1-keys (rkt:list->set (hash-keys ht1)))
-  (define ht2-keys (rkt:list->set (hash-keys ht2)))
-  (define all-keys (rkt:set-union ht1-keys ht2-keys))
+(define (my-hash-equal? ht1 ht2
+                        [keys (rkt:set-union (rkt:list->set (hash-keys ht1))
+                                             (rkt:list->set (hash-keys ht2)))])
   (define start (current-inexact-monotonic-milliseconds))
   (define result
-    (for/and ([key all-keys])
+    (for/and ([key keys])
       (let* ([e1 (hash-ref ht1 key #f)]
              [e2 (hash-ref ht2 key #f)]
              [entry1-pc (if e1 (guarded-entry-path-condition e1) #f)]
@@ -195,12 +194,11 @@
              [entry2-value (if e2 (guarded-entry-value e2) #f)]
              [clause (&& (<=> entry1-pc entry2-pc)
                          (=> entry1-pc (equal? entry1-value entry2-value)))])
-        #;(bdd-true? clause)
         (unsat? (verify (assert clause))))))
   (define elapsed (- (current-inexact-monotonic-milliseconds) start))
   (set! total-my-hash-equal?-time (+ total-my-hash-equal?-time elapsed))
-  #;(printf "my-hash-equal?: ~a ms real time (~a ms total across all calls)\n"
-          elapsed total-my-hash-equal?-time)
+  #;(printf "my-hash-equal?: ~a ms real time (~a ms total, ~a keys checked)\n"
+          elapsed total-my-hash-equal?-time (length (if (list? keys) keys (rkt:set->list keys))))
   result)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sets
@@ -288,9 +286,11 @@
   (my-hash-keys-subset? (sym-set-ht st1) (sym-set-ht st2)))
 
 
-(define (set-equal? st1 st2)
-  (my-hash-equal? (sym-set-ht st1)
-                   (sym-set-ht st2)))
+;; sym-set-level wrapper, keys optional (defaults to comparing everything).
+(define (set-equal? st1 st2 [keys #f])
+  (if keys
+      (my-hash-equal? (sym-set-ht st1) (sym-set-ht st2) keys)
+      (my-hash-equal? (sym-set-ht st1) (sym-set-ht st2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test helpers

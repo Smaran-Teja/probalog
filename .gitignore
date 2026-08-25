@@ -17,4 +17,5 @@ tables/
 .vscode
 *.rktd
 *.csv
+compiled/
 
