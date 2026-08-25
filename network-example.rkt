@@ -1,7 +1,7 @@
 #lang probalog
 
-Edge("a", "b") :: 0.8.
-Edge("b", "c") :: 0.8.
+Edge("a", "b").
+Edge("b", "c").
 Path(x, y) :- Edge(x, y).
 Path(x, z) :- Path(x, y), Edge(y, z).
 

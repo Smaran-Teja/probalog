@@ -194,7 +194,9 @@
              [entry2-value (if e2 (guarded-entry-value e2) #f)]
              [clause (&& (<=> entry1-pc entry2-pc)
                          (=> entry1-pc (equal? entry1-value entry2-value)))])
-        (unsat? (verify (assert clause))))))
+        (if (and (concrete? entry1-pc) (concrete? entry2-pc))
+            (and (eq? entry1-pc entry2-pc) (equal? entry1-value entry2-value))
+            (unsat? (verify (assert clause)))))))
   (define elapsed (- (current-inexact-monotonic-milliseconds) start))
   (set! total-my-hash-equal?-time (+ total-my-hash-equal?-time elapsed))
   #;(printf "my-hash-equal?: ~a ms real time (~a ms total, ~a keys checked)\n"
