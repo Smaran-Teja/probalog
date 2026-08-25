@@ -9,7 +9,18 @@
 (define sentinel (not-a-fact))
 
 ;; args is a list of any type of argument value
-(struct fact (name args) #:transparent)
+(struct fact (name args)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (write-string (symbol->string (fact-name self)) port)
+     (write-string "(" port)
+     (for ([a (fact-args self)] [i (in-naturals)])
+       (when (> i 0) (write-string ", " port))
+       (if (string? a)
+           (write-string (format "~s" a) port)
+           (write a port)))
+     (write-string ")" port))])
 ;; head is a fact, and body is a list of facts
 (struct rule (head body) #:transparent)
 
@@ -184,6 +195,15 @@
 ;; Strip the sentinel placeholder out of a finished result set.
 (define (finalize-result st)
   (set-remove st sentinel))
+
+;; Query a fact's probability against a finished (sentinel-stripped)
+;; result set. `query` itself is an ambient binding of the
+;; roulette/example/disrupt language (not something this module
+;; explicitly defines), so it can't be re-exported via
+;; (all-defined-out) — plain-Racket callers (like probalog/expander.rkt)
+;; use this wrapper instead of calling `query` directly.
+(define (query-fact result f)
+  (query (set-member? result f)))
 
 ;; ---------------------------------------------------------------------
 ;; Plain (guard-free) immediate-consequence operator — shared by the
