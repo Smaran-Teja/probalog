@@ -50,7 +50,7 @@
 (define (show-plots)
   (for ([spec (list (cons get-wall "total wall-clock time (ms)")
                      (cons get-bindings "time in find-bindings-prob/delta (ms)")
-                     (cons get-guard "time in set-add-guarded (ms)")
+                     (cons get-guard "time in set-add (ms)")
                      (cons get-equal "time in my-hash-equal? (ms)"))])
     (plot-sweep full-results full-layers-values (car spec) (cdr spec)
                 (format "~a vs. layers/width" (cdr spec)))))

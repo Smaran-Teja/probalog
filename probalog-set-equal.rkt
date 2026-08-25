@@ -12,11 +12,11 @@
 ;; proportion to how small the delta is relative to the whole database.
 (define (saturate-prob full delta rules)
   (define-values (next-full next-delta) (immediate-prob full delta rules))
-  (define changed-keys (map car (set-fact-guards next-delta)))
+  (define changed-keys (for/list ([(k g) next-delta]) k))
   (if (set-equal? next-full full changed-keys)
       full
       (saturate-prob next-full next-delta rules)))
 
 (define (run-datalog base-fact-probs rules)
   (define base-set (make-base-set base-fact-probs))
-  (finalize-result (saturate-prob base-set base-set rules)))
+  (saturate-prob base-set base-set rules))

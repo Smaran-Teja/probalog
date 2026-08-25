@@ -18,7 +18,10 @@
          set-union
          set-intersect
          set-subtract
-         subset?)
+         subset?
+         set-equal?
+         for/sym-set
+         for*/sym-set)
 
 (provide (all-defined-out))
 
@@ -97,17 +100,23 @@
                 ([(key-value key-guard) (in-hash (flatten-symbolic key))])
         (&& acc (=> key-guard (my-hash-has-key? ht key-value))))))
 
-(define (my-hash-set ht key value)
-  (if (concrete? key)
+;; guard defaults to #t (matches the original unguarded behavior
+;; exactly: (&& key-guard #t) = key-guard). Supplying a guard ANDs it
+;; into every decomposed key-branch's guard, correctly handling a
+;; symbolic key too — unlike a version that assumes key is concrete
+;; and skips flatten-symbolic decomposition entirely.
+(define (my-hash-set ht key value [guard #t])
+  (if (and (concrete? key) (concrete? guard) guard)
       (hash-set ht key (guarded-entry value #t))
       (for/fold ([acc ht])
                 ([(key-value key-guard) (in-hash (flatten-symbolic key))])
+        (define combined-guard (&& key-guard guard))
         (define existing (hash-ref acc key-value #f))
         (define old-val (if existing (guarded-entry-value existing) value))
         (define old-pc  (if existing (guarded-entry-path-condition existing) #f))
         (hash-set acc key-value
-                  (guarded-entry (if key-guard value old-val)
-                                 (|| key-guard old-pc))))))
+                  (guarded-entry (if combined-guard value old-val)
+                                 (|| combined-guard old-pc))))))
 
 (define (my-hash-remove ht key)
   (if (concrete? key)
@@ -178,11 +187,11 @@
            1
            0))))
 
- (define total-my-hash-equal?-time 0.0)
+(define total-my-hash-equal?-time 0.0)
 
 (define (my-hash-equal? ht1 ht2
                         [keys (rkt:set-union (rkt:list->set (hash-keys ht1))
-                                             (rkt:list->set (hash-keys ht2)))])
+                                              (rkt:list->set (hash-keys ht2)))])
   (define start (current-inexact-monotonic-milliseconds))
   (define result
     (for/and ([key keys])
@@ -194,7 +203,8 @@
              [entry2-value (if e2 (guarded-entry-value e2) #f)]
              [clause (&& (<=> entry1-pc entry2-pc)
                          (=> entry1-pc (equal? entry1-value entry2-value)))])
-        (if (and (concrete? entry1-pc) (concrete? entry2-pc))
+        (if (and (concrete? entry1-pc) (concrete? entry2-pc)
+                 (concrete? entry1-value) (concrete? entry2-value))
             (and (eq? entry1-pc entry2-pc) (equal? entry1-value entry2-value))
             (unsat? (verify (assert clause)))))))
   (define elapsed (- (current-inexact-monotonic-milliseconds) start))
@@ -202,6 +212,7 @@
   #;(printf "my-hash-equal?: ~a ms real time (~a ms total, ~a keys checked)\n"
           elapsed total-my-hash-equal?-time (length (if (list? keys) keys (rkt:set->list keys))))
   result)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sets
 
@@ -260,8 +271,13 @@
 (define (set-member? st v)
   (my-hash-has-key? (sym-set-ht st) v))
 
-(define (set-add st v)
-  (sym-set (my-hash-set (sym-set-ht st) v #t)))
+;; guard defaults to #t (unconditional insertion). Supply a (possibly
+;; symbolic) guard to insert v only in the worlds where it holds — a
+;; thin wrapper, since my-hash-set's own optional guard argument does
+;; the actual work, including correctly handling a symbolic v via
+;; flatten-symbolic decomposition.
+(define (set-add st v [guard #t])
+  (sym-set (my-hash-set (sym-set-ht st) v #t guard)))
 
 (define (set-count st)
   (my-hash-count (sym-set-ht st)))
@@ -284,11 +300,48 @@
               [key (in-hash-keys (sym-set-ht st))])
     (set-remove acc key)))
 
+;; Comprehension forms analogous to for/list, for/hash, etc., but
+;; building a sym-set via repeated set-add. Plain built-in for/set
+;; can't be repurposed for this — it's hard-wired to build a
+;; racket/set-style set regardless of what other set-add happens to be
+;; in scope — so these are our own, defined via for/fold/for*/fold.
+;;
+;; The body should produce either:
+;;   - one value: the (possibly symbolic) element to insert
+;;     unconditionally, or
+;;   - two values: the (possibly symbolic) element, and a (possibly
+;;     symbolic) guard restricting when it's present (see set-add's
+;;     guard argument) — which case applies is decided purely by how
+;;     many values the body returns, never by anything about the
+;;     values themselves, so this never risks forking on symbolic data.
+;;
+;; for/sym-set threads clauses like for/fold (nested loops don't
+;; cross-multiply); for*/sym-set threads them like for*/fold (a flat
+;; cartesian product across all clauses — the shape needed for a join).
+(define-syntax-rule (for/sym-set (clause ...) body ...)
+  (for/fold ([acc (set)])
+            (clause ...)
+    (call-with-values
+     (lambda () body ...)
+     (case-lambda
+       [(v) (set-add acc v)]
+       [(v g) (set-add acc v g)]))))
+
+(define-syntax-rule (for*/sym-set (clause ...) body ...)
+  (for*/fold ([acc (set)])
+             (clause ...)
+    (call-with-values
+     (lambda () body ...)
+     (case-lambda
+       [(v) (set-add acc v)]
+       [(v g) (set-add acc v g)]))))
+
 (define (subset? st1 st2)
   (my-hash-keys-subset? (sym-set-ht st1) (sym-set-ht st2)))
 
 
-;; sym-set-level wrapper, keys optional (defaults to comparing everything).
+;; sym-set-level wrapper, keys optional (defaults to comparing every
+;; real element — the internal sentinel is always excluded).
 (define (set-equal? st1 st2 [keys #f])
   (if keys
       (my-hash-equal? (sym-set-ht st1) (sym-set-ht st2) keys)
@@ -514,6 +567,52 @@
               ;; 1 should remain unconditionally present regardless of x16
               (check-true (set-member? s2 1)))
 
+   (test-case "set-add with a guard inserts conditionally"
+              (define-symbolic x19 boolean?)
+              (define s (set))
+              (define s2 (set-add s 1 x19))
+              (with-clean-vc
+                  (check-formula-equiv! (set-member? s2 1) x19))
+              (with-clean-vc
+                  (check-sym-equal! (set-count s2) (if x19 1 0))))
+
+   (test-case "for/sym-set with a single-value body"
+              (define s (for/sym-set ([i (in-range 3)]) i))
+              (check-true (set-member? s 0))
+              (check-true (set-member? s 1))
+              (check-true (set-member? s 2)))
+
+   (test-case "for/sym-set with a single value that is itself symbolic"
+              (define-symbolic x21 boolean?)
+              (define s (for/sym-set ([i (in-list (list 1))]) (if x21 1 2)))
+              ;; the element inserted is (if x21 1 2), not the guard —
+              ;; both 1 and 2 should be present, each under the
+              ;; appropriate branch of x21
+              (with-clean-vc
+                  (check-formula-equiv! (set-member? s 1) x21))
+              (with-clean-vc
+                  (check-formula-equiv! (set-member? s 2) (! x21))))
+
+   (test-case "for/sym-set with a two-value body (element, guard)"
+              (define-symbolic x22 boolean?)
+              (define s (for/sym-set ([i (in-list (list 1 2 3))])
+                          (values i (if (= i 2) x22 #t))))
+              ;; 1 and 3 are unconditional; 2 is present only when x22
+              (check-true (set-member? s 1))
+              (check-true (set-member? s 3))
+              (with-clean-vc
+                  (check-formula-equiv! (set-member? s 2) x22)))
+
+   (test-case "for/sym-set with both element and guard symbolic"
+              (define-symbolic x23 boolean?)
+              (define s (for/sym-set ([i (in-list (list 1))])
+                          (values (if x23 10 20) x23)))
+              ;; 10 is inserted only under guard x23; since the element
+              ;; ITSELF is also (if x23 10 20), 10 should be present
+              ;; exactly when x23 holds (both conditions coincide here)
+              (with-clean-vc
+                  (check-formula-equiv! (set-member? s 10) x23)))
+
    (test-case "set-count"
               (define s (set 1 2 3))
               (check-equal? (set-count s) 3))
@@ -573,22 +672,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test
-;(run-tests hash-tests)
-;(run-tests set-tests)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+(define (run-all-tests)
+  (run-tests hash-tests)
+  (run-tests set-tests))
