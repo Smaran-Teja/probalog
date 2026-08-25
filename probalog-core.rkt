@@ -125,7 +125,7 @@
                 #:when b)
       (cons b (and (cdr w) (cdr fg))))))
 
-;; All derivations of body that use `delta` in at least one clause
+;; All derivations of body that use delta in at least one clause
 ;; position (tries every position as the required-delta position).
 (define (find-bindings-prob/delta body full delta)
   (define full-idx (index-by-name (set-fact-guards full)))
@@ -135,10 +135,38 @@
               [w (find-bindings-prob/at body full-idx delta-idx delta-pos)])
     w))
 
+;; ---------------------------------------------------------------------
+;; Timing instrumentation, to see where time goes once my-hash-equal?'s
+;; share of total time shrinks. Each accumulator sums milliseconds
+;; spent in one specific piece of work, across the whole run. Only
+;; this module mutates these (Racket disallows set! on a variable
+;; imported from another module), so read them from elsewhere via
+;; plain reference — same pattern as hash-set.rkt's
+;; total-my-hash-equal?-time.
+;; ---------------------------------------------------------------------
+(define total-find-bindings-time 0.0)  ; unification/join work
+(define total-guard-build-time 0.0)    ; set-add-guarded (guard construction)
+(define total-set-union-time 0.0)      ; merging full/delta accumulators
+
+;; Runs thunk, adds its wall-clock time (ms) to the accumulator that
+;; `updater!` mutates, and returns thunk's result unchanged.
+(define (time-it! updater! thunk)
+  (define start (current-inexact-monotonic-milliseconds))
+  (define result (thunk))
+  (updater! (- (current-inexact-monotonic-milliseconds) start))
+  result)
+
+(define (add-find-bindings-time! dt) (set! total-find-bindings-time (+ total-find-bindings-time dt)))
+(define (add-guard-build-time! dt) (set! total-guard-build-time (+ total-guard-build-time dt)))
+(define (add-set-union-time! dt) (set! total-set-union-time (+ total-set-union-time dt)))
+
 (define (rule-apply-prob/delta r full delta)
-  (for/fold ([acc (set)])
-            ([w (find-bindings-prob/delta (rule-body r) full delta)])
-    (set-add-guarded acc (substitute (rule-head r) (car w)) (cdr w))))
+  (define bindings (time-it! add-find-bindings-time!
+                              (lambda () (find-bindings-prob/delta (rule-body r) full delta))))
+  (time-it! add-guard-build-time!
+            (lambda ()
+              (for/fold ([acc (set)]) ([w bindings])
+                (set-add-guarded acc (substitute (rule-head r) (car w)) (cdr w))))))
 
 ;; Runs one semi-naive round: `full` is everything known so far,
 ;; `delta` is what was freshly derived last round. Returns (values
@@ -147,9 +175,11 @@
 (define (immediate-prob full delta rules)
   (for/fold ([full-acc full] [new-acc (set)])
             ([r rules])
-    (define delta-pool (set-union delta new-acc))
+    (define delta-pool (time-it! add-set-union-time! (lambda () (set-union delta new-acc))))
     (define fresh (rule-apply-prob/delta r full-acc delta-pool))
-    (values (set-union full-acc fresh) (set-union new-acc fresh))))
+    (define new-full-acc (time-it! add-set-union-time! (lambda () (set-union full-acc fresh))))
+    (define new-new-acc (time-it! add-set-union-time! (lambda () (set-union new-acc fresh))))
+    (values new-full-acc new-new-acc)))
 
 ;; Strip the sentinel placeholder out of a finished result set.
 (define (finalize-result st)

@@ -1,6 +1,7 @@
 #lang roulette/example/disrupt
 (require "probalog-core.rkt"
          "probalog-set-equal.rkt")
+(provide run-sweep sanity-results full-results)
 
 ;; ---------------------------------------------------------------------
 ;; Example 1: simple two-hop path
@@ -110,8 +111,8 @@
 ;; Tune `perf-layers`/`perf-width` up to increase the stress;
 ;; width^layers grows fast, so start small and raise gradually.
 ;; ---------------------------------------------------------------------
-(define perf-layers 40)   ;; number of intermediate layers between source and sink
-(define perf-width 2)    ;; nodes per layer
+(define perf-layers 5)   ;; number of intermediate layers between source and sink
+(define perf-width 3)    ;; nodes per layer
 
 (define (perf-node-name layer idx) (format "L~a_~a" layer idx))
 (define perf-source "SRC")
@@ -144,3 +145,106 @@
 (define perf-result (time (run-datalog perf-facts perf-rules)))
 (printf "Path(SRC,SINK): ~a\n"
         (query (set-member? perf-result (fact 'Path (list perf-source perf-sink)))))
+
+;; ---------------------------------------------------------------------
+;; Example 5 (SWEEP): how much of total run time is spent inside
+;; my-hash-equal? (the Z3-backed guard-equivalence check), as a
+;; function of the layered-DAG performance test's `layers`/`width`.
+;;
+;; WARNING: the number of simple SRC->SINK paths is width^layers. The
+;; grid below (layers up to 36, width up to 6) includes combinations
+;; like layers=36, width=6 -> 6^36 paths, which is almost certainly
+;; intractable — this may run for a very long time or effectively
+;; hang on the larger combinations. Consider starting with the small
+;; SANITY-CHECK grid further down, or shrinking the ranges below,
+;; before running the full sweep.
+;; ---------------------------------------------------------------------
+
+;; Build the same kind of layered-DAG program as the performance test
+;; above, but parameterized so the sweep can construct a fresh one for
+;; each (layers, width) combination.
+(define (make-sweep-program layers width)
+  (define (node-name layer idx) (format "SW~a_~a" layer idx))
+  (define source "SWEEP_SRC")
+  (define sink "SWEEP_SINK")
+  (define edge-prob 0.9)
+  (define facts
+    (append
+     (for/list ([j (in-range width)])
+       (cons (fact 'Edge (list source (node-name 0 j))) edge-prob))
+     (for*/list ([i (in-range (sub1 layers))]
+                 [j (in-range width)]
+                 [k (in-range width)])
+       (cons (fact 'Edge (list (node-name i j) (node-name (add1 i) k))) edge-prob))
+     (for/list ([j (in-range width)])
+       (cons (fact 'Edge (list (node-name (sub1 layers) j) sink)) edge-prob))))
+  (define rules
+    (list (rule (fact 'Path (list 'x 'y))
+                (list (fact 'Edge (list 'x 'y))))
+          (rule (fact 'Path (list 'x 'z))
+                (list (fact 'Path (list 'x 'y))
+                      (fact 'Edge (list 'y 'z))))))
+  (values facts rules))
+
+;; Runs one (layers, width) combo. Returns wall-elapsed plus a
+;; breakdown of where that time went, via subtraction against the
+;; exported timing accumulators (read-only access across modules is
+;; fine; set!-ing an imported variable is not, which is why we
+;; subtract rather than reset each to 0 before every run):
+;;   - equal-time:    time in my-hash-equal? (the Z3 equivalence check)
+;;   - bindings-time: time in find-bindings-prob/delta (unification/join)
+;;   - guard-time:    time in set-add-guarded (guard construction)
+;;   - union-time:    time in set-union (merging full/delta accumulators)
+;; wall-elapsed - (sum of the above) is unaccounted-for overhead
+;; (indexing, GC, misc bookkeeping).
+(define (measure-timing layers width)
+  (define-values (facts rules) (make-sweep-program layers width))
+  (define equal-before total-my-hash-equal?-time)
+  (define bindings-before total-find-bindings-time)
+  (define guard-before total-guard-build-time)
+  (define union-before total-set-union-time)
+  (define wall-start (current-inexact-monotonic-milliseconds))
+  (run-datalog facts rules)
+  (define wall-elapsed (- (current-inexact-monotonic-milliseconds) wall-start))
+  (values wall-elapsed
+          (- total-my-hash-equal?-time equal-before)
+          (- total-find-bindings-time bindings-before)
+          (- total-guard-build-time guard-before)
+          (- total-set-union-time union-before)))
+
+;; Runs the sweep over the given layers/width value lists, printing
+;; progress as it goes (useful since some combinations may be slow),
+;; and returns a list of
+;; (layers width wall-elapsed equal-time bindings-time guard-time union-time)
+;; 7-tuples.
+(define (run-sweep layers-values width-values)
+  (for*/list ([layers layers-values]
+              [width width-values])
+    (printf "layers=~a width=~a ... " layers width)
+    (flush-output)
+    (define-values (wall-elapsed equal-time bindings-time guard-time union-time)
+      (measure-timing layers width))
+    (printf "wall=~ams equal?=~ams bindings=~ams guard=~ams union=~ams\n"
+            wall-elapsed equal-time bindings-time guard-time union-time)
+    (list layers width wall-elapsed equal-time bindings-time guard-time union-time)))
+
+;; --- SANITY CHECK (run this first): a small, fast grid --------------
+(define sanity-layers (list 1 2 3))
+(define sanity-width (list 1 2 3))
+(define sanity-results (run-sweep sanity-layers sanity-width))
+
+;; --- FULL SWEEP: layers in [1,30] step 2, width in [1,3] step 1
+;; (in-range end is exclusive, so 31/4 to include 29/3)
+(define full-layers-values (for/list ([l (in-range 1 31 2)]) l)) ; 1 3 5 ... 29
+(define full-width-values (for/list ([w (in-range 1 4 1)]) w))    ; 1 2 3
+
+(define full-results (run-sweep full-layers-values full-width-values))
+
+;; Plotting is done separately, in probalog-plot.rkt (plain #lang
+;; racket) — see that file. Calling the `plot` library's functions from
+;; inside a #lang roulette/example/disrupt module can fail with errors
+;; like "struct->list: expected argument of type <non-opaque struct>",
+;; since plot's internals assume ordinary Racket semantics that this
+;; language's extensions (for symbolic/probabilistic execution) can
+;; interfere with. Keeping measurement (this file) and visualization
+;; (a plain-Racket file) separate avoids that entirely.
