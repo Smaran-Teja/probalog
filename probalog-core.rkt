@@ -74,10 +74,55 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Immediate consequence operator (semi-naive)
 
-;; predicate name -> list of (fact . guard) pairs
+;; A per-predicate index: all is a fallback list of every (fact .
+;; guard) pair for this predicate; by-pos maps an argument position to
+;; a hash from the value seen at that position to the (fact . guard)
+;; pairs that have it, so a clause with an already-known argument
+;; (a literal constant, or an already-bound variable) can look up only
+;; the facts that could possibly match, instead of scanning every fact
+;; of that predicate.
+(struct pred-index (all by-pos) #:transparent)
+(define (empty-pred-index) (pred-index '() (hash)))
+
+(define (pred-index-add pi f g)
+  (define new-by-pos
+    (for/fold ([bp (pred-index-by-pos pi)]) ([a (fact-args f)] [i (in-naturals)])
+      (hash-update bp i
+                   (lambda (inner) (hash-update inner a (lambda (l) (cons (cons f g) l)) '()))
+                   (hash))))
+  (pred-index (cons (cons f g) (pred-index-all pi)) new-by-pos))
+
+;; predicate name -> pred-index
 (define (index-by-name st)
   (for/fold ([idx (hash)]) ([(k g) st])
-    (hash-update idx (fact-name k) (lambda (l) (cons (cons k g) l)) '())))
+    (hash-update idx (fact-name k)
+                 (lambda (pi) (pred-index-add pi k g))
+                 (lambda () (pred-index-add (empty-pred-index) k g)))))
+
+;; First argument position in clause whose value is already known
+;; (a literal constant, or a variable already in bindings), as
+;; (cons position value) — or #f if every argument is still unbound.
+(define (known-arg clause bindings)
+  (let loop ([args (fact-args clause)] [i 0])
+    (cond
+      [(null? args) #f]
+      [else
+       (define a (car args))
+       (cond
+         [(symbol? a)
+          (if (hash-has-key? bindings a)
+              (cons i (hash-ref bindings a))
+              (loop (cdr args) (add1 i)))]
+         [else (cons i a)])])))
+
+;; Candidates for clause: value-narrowed via known-arg when possible,
+;; else the full (unnarrowed) list for that predicate.
+(define (candidates-for clause bindings idx)
+  (define pi (hash-ref idx (fact-name clause) (empty-pred-index)))
+  (define ka (known-arg clause bindings))
+  (if ka
+      (hash-ref (hash-ref (pred-index-by-pos pi) (car ka) (hash)) (cdr ka) '())
+      (pred-index-all pi)))
 
 ;; Matches body left to right; the clause at delta-pos draws from
 ;; delta-idx, every other clause draws from full-idx.
@@ -86,9 +131,8 @@
   (for/fold ([worlds (list (cons (hash) #t))])
             ([clause body] [i (in-naturals)])
     (define idx (if (= i delta-pos) delta-idx full-idx))
-    (define candidates (hash-ref idx (fact-name clause) '()))
     (for*/list ([w worlds]
-                [fg candidates]
+                [fg (candidates-for clause (car w) idx)]
                 [b (in-value (match-fact clause (car fg) (car w)))]
                 #:when b)
       (cons b (and (cdr w) (cdr fg))))))
