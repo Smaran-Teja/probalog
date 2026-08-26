@@ -2,14 +2,7 @@
 (require "probalog-core.rkt")
 (provide run-datalog)
 
-;; Loop immediate-prob (semi-naive: full db + last round's delta) until
-;; the guards stop changing. Rather than comparing every key in the
-;; database (set-equal?), we only need to check keys that this round's
-;; delta actually touched — any key immediate-prob didn't union new
-;; content into is guaranteed to be identical in next-full and full
-;; already, so checking it would just be a solver call with a foregone
-;; conclusion. This cuts the number of Z3 calls per round roughly in
-;; proportion to how small the delta is relative to the whole database.
+;; Loop immediate-prob until the guards stop changing.
 (define (saturate-prob full delta rules)
   (define-values (next-full next-delta) (immediate-prob full delta rules))
   (define changed-keys (for/list ([(k g) next-delta]) k))

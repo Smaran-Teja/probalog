@@ -2,26 +2,12 @@
 
 (require racket/hash
          rackunit
-         (only-in roulette/example/disrupt flatten-symbolic bdd-true?)
+         (only-in roulette/example/disrupt flatten-symbolic)
          (for-syntax syntax/parse)
          rackunit/text-ui
          racket/pretty
          (prefix-in rkt: racket/set))
 
-(provide set
-         merge-symbolic-set
-         set-member?
-         set-add
-         set-count
-         set-empty?
-         set-remove
-         set-union
-         set-intersect
-         set-subtract
-         subset?
-         set-equal?
-         for/sym-set
-         for*/sym-set)
 
 (provide (all-defined-out))
 
@@ -100,11 +86,11 @@
                 ([(key-value key-guard) (in-hash (flatten-symbolic key))])
         (&& acc (=> key-guard (my-hash-has-key? ht key-value))))))
 
-;; guard defaults to #t (matches the original unguarded behavior
-;; exactly: (&& key-guard #t) = key-guard). Supplying a guard ANDs it
-;; into every decomposed key-branch's guard, correctly handling a
-;; symbolic key too — unlike a version that assumes key is concrete
-;; and skips flatten-symbolic decomposition entirely.
+;; Optional guard argument is a workaround since setting a hash key under a
+;; unary condition isn't possible.
+;; ie. (when x (my-hash-set ...)) creates an unexpected symbolic union
+;; at the top level, with one of the entries as <void>
+
 (define (my-hash-set ht key value [guard #t])
   (if (and (concrete? key) (concrete? guard) guard)
       (hash-set ht key (guarded-entry value #t))
@@ -191,7 +177,7 @@
 
 (define (my-hash-equal? ht1 ht2
                         [keys (rkt:set-union (rkt:list->set (hash-keys ht1))
-                                              (rkt:list->set (hash-keys ht2)))])
+                                             (rkt:list->set (hash-keys ht2)))])
   (define start (current-inexact-monotonic-milliseconds))
   (define result
     (for/and ([key keys])
@@ -209,26 +195,23 @@
             (unsat? (verify (assert clause)))))))
   (define elapsed (- (current-inexact-monotonic-milliseconds) start))
   (set! total-my-hash-equal?-time (+ total-my-hash-equal?-time elapsed))
-  #;(printf "my-hash-equal?: ~a ms real time (~a ms total, ~a keys checked)\n"
-          elapsed total-my-hash-equal?-time (length (if (list? keys) keys (rkt:set->list keys))))
   result)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sets
 
-;; Unique struct with hash-table backing and custom printer
 (struct sym-set (ht)
   #:transparent
   #:property prop:sequence
-    (lambda (s)
-      (define contents
-        (let ([h (sym-set-ht s)])
-          (if (union? h) (union-contents h) (list (cons #t h)))))
-      (define pairs
-        (for*/list ([gv contents]
-                    [(k entry) (in-hash (cdr gv))])
-          (cons k (&& (car gv) (guarded-entry-path-condition entry)))))
-      (in-parallel (in-list (map car pairs)) (in-list (map cdr pairs))))
+  (lambda (s)
+    (define contents
+      (let ([h (sym-set-ht s)])
+        (if (union? h) (union-contents h) (list (cons #t h)))))
+    (define pairs
+      (for*/list ([gv contents]
+                  [(k entry) (in-hash (cdr gv))])
+        (cons k (&& (car gv) (guarded-entry-path-condition entry)))))
+    (in-parallel (in-list (map car pairs)) (in-list (map cdr pairs))))
   #:methods gen:custom-write
   [(define (write-proc self port mode)
      (parameterize ([pretty-printing #f])
@@ -253,7 +236,6 @@
        (write-string ")" port)))])
 
 
-;; Set constructor
 (define-syntax (set stx)
   (syntax-parse stx
     [(_ elem ...)
@@ -261,7 +243,6 @@
      #'(sym-set (my-hash pr ...))]))
 
 
-;; Merging symbolic sets 
 (define (merge-symbolic-set sym-set-val)
   (sym-set (merge-symbolic-hash (sym-set-ht sym-set-val))))
 
@@ -271,11 +252,6 @@
 (define (set-member? st v)
   (my-hash-has-key? (sym-set-ht st) v))
 
-;; guard defaults to #t (unconditional insertion). Supply a (possibly
-;; symbolic) guard to insert v only in the worlds where it holds — a
-;; thin wrapper, since my-hash-set's own optional guard argument does
-;; the actual work, including correctly handling a symbolic v via
-;; flatten-symbolic decomposition.
 (define (set-add st v [guard #t])
   (sym-set (my-hash-set (sym-set-ht st) v #t guard)))
 
@@ -300,24 +276,6 @@
               [key (in-hash-keys (sym-set-ht st))])
     (set-remove acc key)))
 
-;; Comprehension forms analogous to for/list, for/hash, etc., but
-;; building a sym-set via repeated set-add. Plain built-in for/set
-;; can't be repurposed for this — it's hard-wired to build a
-;; racket/set-style set regardless of what other set-add happens to be
-;; in scope — so these are our own, defined via for/fold/for*/fold.
-;;
-;; The body should produce either:
-;;   - one value: the (possibly symbolic) element to insert
-;;     unconditionally, or
-;;   - two values: the (possibly symbolic) element, and a (possibly
-;;     symbolic) guard restricting when it's present (see set-add's
-;;     guard argument) — which case applies is decided purely by how
-;;     many values the body returns, never by anything about the
-;;     values themselves, so this never risks forking on symbolic data.
-;;
-;; for/sym-set threads clauses like for/fold (nested loops don't
-;; cross-multiply); for*/sym-set threads them like for*/fold (a flat
-;; cartesian product across all clauses — the shape needed for a join).
 (define-syntax-rule (for/sym-set (clause ...) body ...)
   (for/fold ([acc (set)])
             (clause ...)
@@ -340,8 +298,6 @@
   (my-hash-keys-subset? (sym-set-ht st1) (sym-set-ht st2)))
 
 
-;; sym-set-level wrapper, keys optional (defaults to comparing every
-;; real element — the internal sentinel is always excluded).
 (define (set-equal? st1 st2 [keys #f])
   (if keys
       (my-hash-equal? (sym-set-ht st1) (sym-set-ht st2) keys)

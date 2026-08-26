@@ -3,7 +3,13 @@
 (provide (all-defined-out)
          (all-from-out "hash-set.rkt"))
 
-;; args is a list of any type of argument value
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Program representation
+
+;; name is the predicate identifier, and
+;; args is a list of any (concrete) arguments supplied to the fact.
+
+;; args can be symbols, which represent variables 
 (struct fact (name args)
   #:transparent
   #:methods gen:custom-write
@@ -16,12 +22,13 @@
            (write-string (format "~s" a) port)
            (write a port)))
      (write-string ")" port))])
-;; head is a fact, and body is a list of facts
+
+;; head is the derived fact, and body is a list of
+;; facts (clauses) that must be satisfied. 
 (struct rule (head body) #:transparent)
 
-;; ---------------------------------------------------------------------
-;; Unification
-;; ---------------------------------------------------------------------
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Matching
 
 ;; Match a fact pattern against f, given existing bindings. Returns
 ;; extended bindings, or #f if the match fails.
@@ -54,21 +61,18 @@
         (map (lambda (a) (if (symbol? a) (hash-ref bindings a) a))
              (fact-args head))))
 
-;; ---------------------------------------------------------------------
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Probabilistic fact database
-;; ---------------------------------------------------------------------
 
 ;; base-fact-probs : list of (cons fact probability)
 (define (make-base-set base-fact-probs)
   (for/sym-set ([fp base-fact-probs])
     (values (car fp) (flip (cdr fp)))))
 
-;; ---------------------------------------------------------------------
-;; Semi-naive immediate-consequence operator. `delta` is what was
-;; freshly derived last round; only derivations using delta in at
-;; least one clause position are computed (tries every position in
-;; turn), since anything using only older facts was already found.
-;; ---------------------------------------------------------------------
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Immediate consequence operator (semi-naive)
 
 ;; predicate name -> list of (fact . guard) pairs
 (define (index-by-name st)
@@ -77,6 +81,7 @@
 
 ;; Matches body left to right; the clause at delta-pos draws from
 ;; delta-idx, every other clause draws from full-idx.
+;; Produces a list of (bindings . guard) pairs, or "world"s 
 (define (find-bindings-prob/at body full-idx delta-idx delta-pos)
   (for/fold ([worlds (list (cons (hash) #t))])
             ([clause body] [i (in-naturals)])
@@ -88,7 +93,13 @@
                 #:when b)
       (cons b (and (cdr w) (cdr fg))))))
 
-;; Tries every clause position as the required-delta position.
+
+;; `delta` is what was freshly derived in the most recent iteration.
+;; Only derivations using delta in at least one clause position are
+;; computed, since anything using only older facts was already found.
+
+;; try every clause position as the required-delta position.
+;; produces a list of worlds (bindings . guard) pairs
 (define (find-bindings-prob/delta body full delta)
   (define full-idx (index-by-name full))
   (define delta-idx (index-by-name delta))
@@ -97,9 +108,9 @@
               [w (find-bindings-prob/at body full-idx delta-idx delta-pos)])
     w))
 
-;; ---------------------------------------------------------------------
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Timing instrumentation
-;; ---------------------------------------------------------------------
+
 (define total-find-bindings-time 0.0)
 (define total-guard-build-time 0.0)
 (define total-set-union-time 0.0)
@@ -133,8 +144,6 @@
     (define new-new-acc (time-it! add-set-union-time! (lambda () (set-union new-acc fresh))))
     (values new-full-acc new-new-acc)))
 
-;; `query` is an ambient roulette/example/disrupt binding, not
-;; re-exportable via (all-defined-out) — plain-Racket callers (e.g.
-;; probalog/expander.rkt) use this wrapper instead.
+;; re-exporting query from roulette/example/disrupt as query-fact 
 (define (query-fact result f)
   (query (set-member? result f)))

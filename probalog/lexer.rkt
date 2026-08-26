@@ -17,6 +17,8 @@
       [(eof-object? c) (reverse (cons (token 'eof #f) acc))]
       [(char-alphabetic? c) (loop (cons (read-ident port) acc))]
       [(char-numeric? c) (loop (cons (read-number port) acc))]
+      [(and (char=? c #\-) (let ([c2 (peek-char port 1)]) (and (char? c2) (char-numeric? c2))))
+       (loop (cons (read-number port) acc))]
       [(char=? c #\") (loop (cons (read-string-lit port) acc))]
       [(char=? c #\() (read-char port) (loop (cons (token 'lparen #f) acc))]
       [(char=? c #\)) (read-char port) (loop (cons (token 'rparen #f) acc))]
@@ -53,13 +55,16 @@
       (loop)))
   (token 'ident (get-output-string out)))
 
-;; Reads a number: digits, optionally followed by '.' + more digits —
-;; but only consumes the '.' if a digit actually follows it, so that
-;; e.g. "0.8." (probability immediately followed by the statement
-;; terminator) correctly lexes as NUMBER("0.8") then PERIOD, not as
-;; a malformed number swallowing the terminator.
+;; Reads a number: an optional leading '-', then digits, optionally
+;; followed by '.' + more digits — but only consumes the '.' if a
+;; digit actually follows it, so that e.g. "0.8." (probability
+;; immediately followed by the statement terminator) correctly lexes
+;; as NUMBER("0.8") then PERIOD, not as a malformed number swallowing
+;; the terminator.
 (define (read-number port)
   (define out (open-output-string))
+  (when (char=? (peek-char port) #\-)
+    (write-char (read-char port) out))
   (let loop ()
     (define c (peek-char port))
     (when (and (not (eof-object? c)) (char-numeric? c))
