@@ -1,6 +1,6 @@
 #lang roulette/example/disrupt
-(require "probalog-core.rkt"
-         "probalog-set-equal.rkt")
+(require "../probalog-core.rkt"
+         "../probalog-set-equal.rkt")
 (provide run-sweep sanity-results full-results)
 
 ;; ---------------------------------------------------------------------
