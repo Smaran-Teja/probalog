@@ -1,4 +1,4 @@
-#lang probalog
+#lang roulette/example/probalog
 
 Edge("a", "b") :: 0.5.
 Edge("b", "c") :: 0.6.
