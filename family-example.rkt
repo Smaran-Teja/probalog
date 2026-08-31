@@ -1,4 +1,4 @@
-#lang probalog
+#lang roulette/example/probalog 
 
 % Classic "family relations" Datalog example (a standard teaching
 % program, e.g. from the Souffle benchmark suite's `family`), adapted
