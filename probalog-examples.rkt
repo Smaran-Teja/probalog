@@ -132,19 +132,22 @@
 ;; (values facts rules) and query-fact is one fact to report the
 ;; probability of, as a sanity check that the run did something.
 
+;; Sizes are picked so each benchmark takes roughly half a second.
+;; Cost grows steeply (and non-linearly) in these parameters, so
+;; nudging one by a single step can change the runtime severalfold.
 (define benchmarks
   (list
    (list "layered-dag"
-         (lambda () (make-layered-dag 5 3))
+         (lambda () (make-layered-dag 6 3))
          (fact 'Path (list "SRC" "SINK")))
    (list "cyclic-ring"
-         (lambda () (make-cyclic-ring 12 3))
-         (fact 'Reach (list "N0" "N6")))
+         (lambda () (make-cyclic-ring 9 3))
+         (fact 'Reach (list "N0" "N5")))
    (list "family"
-         (lambda () (make-family 5))
-         (fact 'Ancestor (list "P0" "P30")))
+         (lambda () (make-family 7))
+         (fact 'Ancestor (list "P0" "P100")))
    (list "supply-chain"
-         (lambda () (make-supply-chain 5 4))
+         (lambda () (make-supply-chain 12 10))
          (fact 'NeedsAudit (list "pkg0_0")))))
 
 ;; Runs one benchmark, returning
