@@ -2,23 +2,16 @@
 (require plot
          "probalog-examples.rkt")
 
-;; Calling `plot` inside a function (rather than as a bare top-level
-;; expression) means its return value is discarded, so DrRacket's
-;; auto-display-top-level-results behavior never kicks in. Setting
-;; this makes every `plot` call open its own window instead.
+;; Requiring probalog-examples.rkt runs the benchmarks. Its results
+;; cross the module boundary as ordinary Racket lists and numbers, so
+;; plotting them here needs no interaction with roulette.
+
+;; `plot` called inside a function has its return value discarded, so
+;; DrRacket never auto-displays it; this makes each call open a window.
 (plot-new-window? #t)
 
-;; benchmark-results is a plain list of
-;; (name wall equal bindings guard union index) entries, provided by
-;; probalog-examples.rkt (a #lang roulette module) -- by the time they
-;; cross the module boundary here they're ordinary Racket
-;; lists/numbers, so plotting them in a plain #lang racket module
-;; works without any interaction with roulette's language extensions.
-
-;; Timing breakdown as a single stacked horizontal bar.
-;; stacked-histogram takes (vector label (list value ...)) pairs, one
-;; segment per value; with a single category that's one bar split into
-;; colored segments. #:invert? #t lays it out horizontally.
+;; Timing breakdown as one stacked horizontal bar: stacked-histogram
+;; takes (vector label (list value ...)), one segment per value.
 (define (plot-breakdown parts title)
   (define total (apply + (map cdr parts)))
   (plot (stacked-histogram
@@ -33,8 +26,7 @@
         #:y-label #f
         #:legend-anchor 'outside-right-top))
 
-;; Timing split aggregated across every benchmark. "other" is total
-;; wall-clock minus everything accounted for (GC, misc bookkeeping).
+;; "other" is wall-clock minus everything accounted for: GC and misc.
 (define (show-timing-split [results benchmark-results])
   (define-values (wall equal bindings guard union index)
     (aggregate-timing results))

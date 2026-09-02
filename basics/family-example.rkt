@@ -1,23 +1,13 @@
 #lang roulette/example/probalog 
 
-% Classic "family relations" Datalog example (a standard teaching
-% program, e.g. from the Souffle benchmark suite's `family`), adapted
-% to probalog's syntax. Most facts are certain vital records (no ::
-% annotation, defaulting to probability 1); one parentage fact is
-% marked uncertain, representing an incomplete historical record, to
-% show how uncertainty propagates through derived relations.
+% Classic family-relations Datalog, with one uncertain parentage
+% record so uncertainty propagates into the derived relations.
 %
-% Note: classic Sibling(x,y) :- Parent(z,x), Parent(z,y), x != y
-% needs disequality, which probalog doesn't support (no negation).
-% Omitting the x != y check would make everyone trivially their own
-% sibling, so Sibling is left out rather than defined incorrectly.
+% No Sibling: it needs disequality (x != y), which probalog lacks.
 
 % --- Family tree -------------------------------------------------
-% Tom + Mary -> Alice, Ed
-% John + Sue -> Bob
-% Alice + Bob -> Carol, Dave
-% Ed + Fay -> Gina  (Ed's parentage of Gina is only 70% certain --
-%                    an incomplete historical record)
+% Tom + Mary -> Alice, Ed        John + Sue -> Bob
+% Alice + Bob -> Carol, Dave     Ed + Fay -> Gina  (Ed only 70%)
 
 Male("Tom").
 Male("John").
@@ -62,9 +52,7 @@ Daughter(x, y) :- Parent(y, x), Female(x).
 ? Grandmother("Mary", "Carol").
 ? Ancestor("Tom", "Carol").
 
-% Goes through the uncertain Parent("Ed","Gina") record, so this
-% should come out to probability 0.7.
-? Ancestor("Tom", "Gina").
+? Ancestor("Tom", "Gina").      % 0.7, via the uncertain record
 
 ? Son("Dave", "Alice").
 ? Daughter("Carol", "Bob").

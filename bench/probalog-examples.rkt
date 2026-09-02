@@ -6,14 +6,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Program generators
 ;;
-;; Each returns (values facts rules), where facts is a list of
-;; (cons fact probability). They're parameterized so the size can be
-;; tuned, but each benchmark below picks one fixed configuration.
+;; Each returns (values facts rules), facts being a list of
+;; (cons fact probability).
 
-;; A layered DAG: SRC -> L0_* -> ... -> L(layers-1)_* -> SINK, fully
-;; connected between adjacent layers. Every SRC->SINK path has the
-;; same length, and there are width^layers distinct simple paths, so
-;; this stresses guard construction over many converging derivations.
+;; A layered DAG, fully connected between adjacent layers, with
+;; width^layers distinct SRC->SINK paths -- stresses guard
+;; construction over many converging derivations.
 (define (make-layered-dag layers width [edge-prob 0.9])
   (define (node l i) (format "L~a_~a" l i))
   (define facts
@@ -34,11 +32,10 @@
                       (fact 'Edge (list 'y 'z))))))
   (values facts rules))
 
-;; A ring of n nodes with chords to the node k ahead. Every node
-;; reaches every other, and the cycles mean facts are re-derived many
-;; ways, so this stresses fixpoint detection: guards keep accumulating
-;; syntactically redundant disjuncts that only a semantic check can
-;; see through.
+;; A ring of n nodes with chords k ahead. The cycles re-derive facts
+;; many ways, so guards accumulate syntactically redundant disjuncts
+;; that only a semantic check sees through -- stresses fixpoint
+;; detection.
 (define (make-cyclic-ring n [chord 3] [edge-prob 0.85])
   (define (node i) (format "N~a" i))
   (define facts
@@ -55,10 +52,9 @@
                       (fact 'Edge (list 'y 'z))))))
   (values facts rules))
 
-;; A balanced binary ancestry tree with several derived relations
-;; layered on top. Unlike the graph benchmarks this has many distinct
-;; predicates and rules with three body clauses, so it stresses the
-;; join across predicates rather than deep recursion.
+;; A balanced binary ancestry tree with derived relations on top:
+;; many distinct predicates and three-clause bodies, so it stresses
+;; the join across predicates rather than deep recursion.
 (define (make-family depth [parent-prob 0.95])
   (define (person i) (format "P~a" i))
   (define size (sub1 (expt 2 depth)))
@@ -69,7 +65,7 @@
                  [c (in-list (list (+ (* 2 i) 1) (+ (* 2 i) 2)))]
                  #:when (< c size))
        (cons (fact 'Parent (list (person i) (person c))) parent-prob))
-     ;; alternating genders, all certain
+     ;; alternating genders
      (for/list ([i (in-range size)])
        (cons (fact (if (even? i) 'Male 'Female) (list (person i))) 1))))
   (define rules
@@ -94,23 +90,22 @@
                       (fact 'Female (list 'x))))))
   (values facts rules))
 
-;; A layered dependency graph where a package is vulnerable if any
-;; dependency is, plus an audit relation that joins vulnerability
-;; against maintenance status. Base facts have mixed probabilities,
-;; so guards stay genuinely symbolic rather than collapsing.
+;; A layered dependency graph: a package is vulnerable if any
+;; dependency is. Mixed base probabilities keep guards genuinely
+;; symbolic rather than collapsing.
 (define (make-supply-chain layers width)
   (define (pkg l i) (format "pkg~a_~a" l i))
   (define facts
     (append
-     ;; each package depends on two in the layer below
+     ;; each depends on two in the layer below
      (for*/list ([l (in-range (sub1 layers))]
                  [i (in-range width)]
                  [d (in-list (list i (modulo (add1 i) width)))])
        (cons (fact 'DependsOn (list (pkg l i) (pkg (add1 l) d))) 0.9))
-     ;; leaves carry a direct vulnerability risk
+     ;; leaves carry direct risk
      (for/list ([i (in-range width)])
        (cons (fact 'HasCVE (list (pkg (sub1 layers) i))) (if (even? i) 0.3 0.15)))
-     ;; maintenance status, also uncertain
+     ;; maintenance status
      (for*/list ([l (in-range layers)]
                  [i (in-range width)])
        (cons (fact 'Unmaintained (list (pkg l i))) 0.2))))
@@ -128,13 +123,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Benchmarks
 ;;
-;; Each entry is (name thunk query-fact), where the thunk returns
-;; (values facts rules) and query-fact is one fact to report the
-;; probability of, as a sanity check that the run did something.
-
-;; Sizes are picked so each benchmark takes roughly half a second.
-;; Cost grows steeply (and non-linearly) in these parameters, so
-;; nudging one by a single step can change the runtime severalfold.
+;; (name thunk query-fact), the fact being a sanity check that the run
+;; did something. Sizes are picked so each takes roughly half a
+;; second; cost grows steeply, so a single step can change the runtime
+;; severalfold.
 (define benchmarks
   (list
    (list "layered-dag"
@@ -150,11 +142,9 @@
          (lambda () (make-supply-chain 12 10))
          (fact 'NeedsAudit (list "pkg0_0")))))
 
-;; Runs one benchmark, returning
-;; (name wall equal-time bindings-time guard-time union-time index-time).
-;; Timings come from subtracting the exported accumulators before and
-;; after (read-only access across modules is fine; set!-ing an imported
-;; variable is not, which is why we subtract rather than reset).
+;; Returns (name wall equal bindings guard union index). Timings
+;; subtract the exported accumulators before and after: set!-ing an
+;; imported variable isn't allowed, so we subtract rather than reset.
 (define (run-benchmark name make-program query-target)
   (define-values (facts rules) (make-program))
   (define equal-before total-my-hash-equal?-time)
@@ -180,8 +170,7 @@
   (for/list ([b benchmarks])
     (run-benchmark (car b) (cadr b) (caddr b))))
 
-;; Sums each timing category across every benchmark, as
-;; (total-wall equal bindings guard union index).
+;; Sums each timing category across every benchmark.
 (define (aggregate-timing results)
   (for/fold ([wall 0] [equal 0] [bindings 0] [guard 0] [union 0] [index 0])
             ([r results])
