@@ -19,3 +19,5 @@ tables/
 *.csv
 compiled/
 
+.venv/
+bench/.venv/
