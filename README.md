@@ -97,6 +97,8 @@ uses a monotone process instead, and says why.
 | [probalog-plot.rkt](bench/probalog-plot.rkt)             | where the time goes: matching, guard construction, fixpoint equality, indexing, unions     |
 | [compare-problog.sh](bench/compare-problog.sh)           | sets up ProbLog in a local virtualenv and runs the comparison — the entry point            |
 | [compare-problog.py](bench/compare-problog.py)           | probalog against ProbLog on matched programs: wall time, and whether they agree            |
+| [compare-souffle.sh](bench/compare-souffle.sh)           | the same against Soufflé — the entry point                                                 |
+| [compare-souffle.py](bench/compare-souffle.py)           | probalog against Soufflé, run with and without probability annotations                     |
 
 `probalog-plot.rkt` opens a plot window, and requiring it runs the
 benchmarks first.
@@ -154,6 +156,51 @@ redundant disjuncts and needs solver calls to decide it has converged.
 ProbLog separates the phases: ground first with no probabilistic
 reasoning, then compile once and do weighted model counting. Cycles
 cost probalog on every round and cost ProbLog only once.
+
+### Comparing against Soufflé
+
+```
+brew install souffle
+./bench/compare-souffle.sh --quick
+```
+
+Soufflé is pure Datalog with no notion of probability, so this runs
+probalog *twice* on each program: once with facts left unannotated
+(probability 1, which produces concrete `#t` guards — probalog doing
+plain Datalog) and once with every fact at `:: 0.5`. Same facts, same
+rules, same fixpoint, same derived relation. The only difference is
+whether the guards are symbolic, which isolates **the price of
+uncertainty** from every other cost.
+
+Two results, across five program families and 20 configurations:
+
+**probalog@1 derived exactly the relation Soufflé did, every time** —
+up to 5461 tuples. Since the suites include `sg` and Andersen's
+points-to, that is a decent check of the Datalog core against a mature
+engine.
+
+**What probability costs depends entirely on program shape:**
+
+| suite      | relation | probalog@1 | probalog@0.5 | cost of probability |
+| ---------- | --------: | ---------: | ------------: | ------------------- |
+| pointsto (16) |      289 |      0.48s |         0.64s | 1.3x                |
+| sg (depth 6)  |     5461 |      0.63s |         1.36s | 2.2x                |
+| ring (60)     |     3600 |      1.02s |         1.63s | 1.6x                |
+| dag (6,6)     |      613 |      0.53s |         2.19s | 4.2x                |
+| chordring (16)|      256 |      0.50s |         3.62s | 7.3x                |
+| chordring (20)|      400 |      0.42s |       timeout | —                   |
+
+Chains, trees and DAGs are cheap: points-to and same-generation pay
+almost nothing for going probabilistic, even at 5461 tuples. Dense
+cyclic graphs are where it goes wrong, and the last row is the clearest
+statement of it — probalog computes all 400 tuples of that relation in
+0.42s with certain facts and cannot finish in two minutes with
+uncertain ones. Nothing changed but the guards.
+
+Note that probalog@1 is essentially flat and startup-dominated
+throughout (~0.3s of the time is Racket booting), so the Datalog core
+itself is not what costs. Soufflé runs at 0.04–0.06s here, also mostly
+startup; `souffle -c` compiles to C++ and would widen the gap further.
 
 ## Reading the output
 

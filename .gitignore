@@ -21,3 +21,4 @@ compiled/
 
 .venv/
 bench/.venv/
+__pycache__/
