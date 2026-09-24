@@ -1,7 +1,7 @@
 #lang roulette/example/disrupt
 ;; Standalone timing benchmark and plot: runs six programs, aggregates
 ;; where saturation spends its time, and renders a stacked bar. Uses
-;; plot/no-gui, so `racket probalog-timing-plot.rkt` works as a script.
+;; plot/no-gui, so `racket timing-plot.rkt` works as a script.
 ;;
 ;; The six press on different parts of the engine so none dominates:
 ;;
@@ -12,8 +12,7 @@
 ;; Only saturation is timed, so `dag` is a smaller slice: its cost is in
 ;; the query, not saturation. Cost grows steeply in the size parameters,
 ;; so re-calibrate rather than nudging blindly.
-(require probalog/probalog-core
-         probalog/probalog-set-equal
+(require probalog/core
          plot/no-gui)
 (provide probalog-timing-split-plot)
 

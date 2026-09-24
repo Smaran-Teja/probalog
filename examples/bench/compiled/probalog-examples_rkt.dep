@@ -1,1 +1,1 @@
-("9.1" tarm64osx ("2d82454639c1a828f5d5c83ba1ba824ba62132fc" . "03c0b1e22c25ad51d393c118b24a87fa5524b855") (collects #"probalog" #"probalog-core.rkt") (collects #"probalog" #"probalog-set-equal.rkt") (collects #"racket" #"runtime-config.rkt") (collects #"roulette" #"example" #"disrupt.rkt"))
+("9.1" tarm64osx ("c2cc329757ba81950c1877e102a3ef6c66758168" . "c2ecfe76bbf1ab1398ed573a4e7030d7843912f0") (collects #"probalog" #"core.rkt") (collects #"racket" #"runtime-config.rkt") (collects #"roulette" #"example" #"disrupt.rkt"))

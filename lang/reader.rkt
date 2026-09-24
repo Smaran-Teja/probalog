@@ -1,5 +1,5 @@
 #lang s-exp syntax/module-reader
-probalog/expander
+probalog/lang/expander
 #:read probalog-read
 #:read-syntax probalog-read-syntax
 #:whole-body-readers? #t
@@ -21,9 +21,7 @@ probalog/expander
 (define (probalog-read-syntax src port)
   (parse-probalog port src))
 
-;; Editor support. DrRacket consults these keys directly; other tools
-;; (including racket-langserver, and so VS Code) read the same
-;; information through `read-language`.
+;; Editor support: DrRacket reads these keys through `read-language`.
 (define (probalog-info key default default-filter)
   (case key
     [(color-lexer)
@@ -37,6 +35,4 @@ probalog/expander
     [(drracket:comment-delimiters) '((line "%" " "))]
     [(drracket:paren-matches) '((|(| |)|))]
     [(drracket:quote-matches) '(#\")]
-    [(drracket:default-filters) '(["Probalog Sources" "*.pdl"])]
-    [(drracket:default-extension) "pdl"]
     [else (default-filter key default)]))

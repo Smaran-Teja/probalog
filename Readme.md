@@ -20,15 +20,17 @@ After all facts (along with their probabilities) have been derived, you can quer
 
 ## Factset representation and fixpoint detection
 
-An ideal datastructure to represent the factset in this setting is a symbolic set. However, Rosette (the symbolic evaluation engine Roulette uses) doesn't have support for symbolic hashes/sets. So, we created our own implementation in `hash-set.rkt` that works by associating each set element with a **guard**: the condition under which that element is present. Elements themselves are concrete — the parser requires facts and queries to be ground, so it is only membership that is uncertain.
+Probalog is implemented using [rsdd](https://github.com/neuppl/rsdd) ffi bindings used in the [Roulette](https://github.com/neuppl/roulette) probabilistic programming language.
 
-Originally, the guards were represented as Rosette terms (formulas), but for the following reasons, it has been changed to BDDs (Binary Decision Diagrams), following the idea of [Tp compilation](https://www.sciencedirect.com/science/article/pii/S0888613X16300949), for the following reasons:
+An ideal datastructure to represent the factset in this setting is a symbolic set. However, Rosette (the symbolic evaluation engine Roulette uses) doesn't have support for symbolic hashes/sets. So, we created our own implementation in `hash-set.rkt` that works by associating each set element with a **guard**: the condition under which that element is present. Elements themselves are concrete since the facts in probalog are themselved concrete, so it is only membership in the factset that is uncertain.
 
-1. Fixpoint detection becomes pointer equality over BDDs: Checking equality of guards is constant time with BDDs, whereas with Rosette terms, fixpoint detection was the dominant cost of running a probalog program.
+Originally, the guards were represented as Rosette terms (formulas), but for the following reasons, it has been changed to BDDs (Binary Decision Diagrams), from the idea of [Tp compilation](https://www.sciencedirect.com/science/article/pii/S0888613X16300949):
 
-2. Querying is fast: Since the BDDs are already compiled, querying for probability only requires WMC (weighted model counting), as opposed to compiling the bdd on-demand for every query.
+1. Fixpoint detection becomes pointer equality over BDDs. Checking equality of guards is constant time with BDDs, whereas with Rosette terms, fixpoint detection was the dominant cost of running a probalog program.
 
-3. Canonical representation: There are programs that repeatedly disjoin redundant formulas onto guards, which can make the guards very large, making the program very slow. BDDs collapse redundant disjunctions to a canonical form, keeping guards small.
+2. Querying is fast. Since the BDDs are already compiled, querying for probability only requires WMC (weighted model counting), as opposed to compiling the bdd on-demand for every query.
+
+3. Canonical representation of guards. There are programs that repeatedly disjoin redundant formulas onto guards, which can make the guards very large, making the program very slow. BDDs collapse redundant disjunctions to a canonical form, keeping guards small.
 
 ### How sym-sets work
 
@@ -113,50 +115,10 @@ The database is saturated once, and then every `?` and `!` statement runs in sou
 
 ## Examples and #lang probalog
 
-Probalog is implemented as an example language inside Roulette, alongside `roulette/example/disrupt`.
-
-To install this branch of roulette (that has probalog) locally, clone this repository on the branch carrying probalog and, from the root, run `raco pkg install --auto roulette/ roulette-lib/` or `./update.sh` to install roulette locally. You should have racket installed already.
-
-Probalog can then be run by using the hashlang declaration at the top of rkt files:
+Probalog be run by using the hashlang declaration at the top of rkt files:
 
 ```
 #lang probalog
 ```
 
-Some example programs, including the graph-reachability example in this file and some others can be found at [github.com/Smaran-Teja/probalog](https://github.com/Smaran-Teja/probalog).
-
-The language also claims the file extension `.pdl`, which is what editors key off of when they can't read the `#lang` line. A `.rkt` file works exactly the same way when run.
-
-Note: parsing stops at the first error, so a program with several mistakes reveals them one at a time.
-
-## Editor support
-
-**DrRacket** needs no setup — it reads everything from the `#lang` line:
-
-- syntax coloring in Probalog's own terms (predicates as keywords, variables as symbols, strings and probabilities as constants, `%` comments as comments)
-- indentation that understands statements: a rule broken across lines aligns under its first body clause, and a line after a completed statement returns to the margin
-- Check Syntax arrows between a rule's variables. A variable is bound by its first occurrence in the body — the one that actually ranges over the database — and used by the rest, including the ones in the head, so Rename and Jump to Binding work
-- an interactions area that reads statements, submitting on a period rather than on a balanced parenthesis. Racket expressions work there too: the saturated database is bound to `probalog-result` and the whole engine interface is in scope
-- parse errors highlighted where they occur
-
-**VS Code** needs two separate pieces, since nothing there reads a `#lang` line. Diagnostics, hover, and jump-to-binding come from [racket-langserver](https://github.com/jeapostrophe/racket-langserver), which runs the same Check Syntax pass and works on `.rkt` files with no setup. Coloring comes from the extension in [`vscode/`](vscode/), installed by linking it in:
-
-```
-ln -s "$(pwd)/vscode" ~/.vscode/extensions/probalog
-```
-
-See [`vscode/README.md`](vscode/README.md) for details, including why a `.rkt` file still gets Racket's coloring there.
-
-### How it's put together
-
-| file                                               | role                                                                                                                                 |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `lang/reader.rkt`                                  | the `#lang` entry point; answers the editor info keys below                                                                          |
-| `lang/lang-info.rkt`, `lang/configure-runtime.rkt` | installs the interactive reader for the REPL                                                                                         |
-| `lexer.rkt`                                        | the scanner, shared by the parser, the colorer, the submit predicate, and the indenter, so they can't disagree about what a token is |
-| `parser.rkt`                                       | recursive descent; attaches source locations and emits the Check Syntax binding scaffold                                             |
-| `expander.rkt`                                     | `#%module-begin`, plus macros that make the marker forms work at the REPL                                                            |
-| `tool/syntax-color.rkt`                            | `color-lexer`                                                                                                                        |
-| `tool/submit.rkt`                                  | `drracket:submit-predicate`                                                                                                          |
-| `tool/indentation.rkt`                             | `drracket:indentation`                                                                                                               |
-| `vscode/`                                          | TextMate grammar for VS Code                                                                                                         |
+Example files can be found in the `examples` directory

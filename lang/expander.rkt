@@ -1,12 +1,10 @@
 #lang racket/base
 (require (for-syntax racket/base syntax/parse racket/path)
-         probalog/probalog-core
-         probalog/probalog-set-equal)
+         probalog/core)
 
 (provide (except-out (all-from-out racket/base) #%module-begin)
          (rename-out [probalog-module-begin #%module-begin])
-         (all-from-out probalog/probalog-core)
-         (all-from-out probalog/probalog-set-equal)
+         (all-from-out probalog/core)
          #%probalog-fact-entry
          #%probalog-rule-entry
          #%probalog-query-entry
@@ -84,7 +82,7 @@
           (provide probalog-result)
           stmt-e ...))]))
 
-;; "file.pdl:5:0" for a statement, or #f if it has no location (as
+;; "file.rkt:5:0" for a statement, or #f if it has no location (as
 ;; when it came from the interactions prompt).
 (define-for-syntax (where-string stx)
   (define src (syntax-source stx))

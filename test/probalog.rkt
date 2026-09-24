@@ -80,7 +80,7 @@
   (define src (apply string-append lines))
   (define msg
     (with-handlers ([exn:fail? exn-message])
-      (parse-probalog (open-input-string src) "test.pdl")
+      (parse-probalog (open-input-string src) "test.rkt")
       #f))
   (with-check-info (['program src] ['pattern rx] ['message (or msg "none")])
     (check-true (and msg (regexp-match? rx msg) #t)
@@ -694,7 +694,7 @@
 (module+ test
   (define ns (make-base-namespace))
   (parameterize ([current-namespace ns])
-    (define core 'probalog/probalog-core)
+    (define core 'probalog/core)
     (define fact* (dynamic-require core 'fact))
     (define make-base-set* (dynamic-require core 'make-base-set))
     (define observe-fact* (dynamic-require core 'observe-fact))

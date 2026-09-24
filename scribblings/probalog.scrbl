@@ -9,7 +9,7 @@
 			      query
 			      observe!
 			      pmf?)
-		     (only-in probalog/probalog-core
+		     (only-in probalog/core
 			      fact
 			      fact?
 			      fact-name
@@ -36,8 +36,7 @@
 			      subset?
 			      set-equal?
 			      for/sym-set
-			      for*/sym-set)
-		     (only-in probalog/probalog-set-equal
+			      for*/sym-set
 			      run-datalog
 			      saturate-semi)
 		     (only-in probalog/guards
@@ -126,15 +125,13 @@ constants are double-quoted strings or numbers.
 	(list @tt{! Foo("a").} "observe that a fact is true")
 	(list @tt{! ~Foo("a").} "observe that a fact is false"))]
 
-Facts and rules may appear in any order,
-and are collected before anything runs:
-the database is fully saturated
-before the first query or observation is evaluated.
-Queries and observations, on the other hand,
-run in source order relative to each other,
-so a query before the first observation reports a prior
-and a query after it reports a posterior
-conditioned on every preceding observation.
+Facts and rules may appear in any order and are collected before
+anything runs, so the database is fully saturated before the first
+query or observation.
+Queries and observations run in source order relative to each other:
+a query before an observation reports a prior,
+and one after it a posterior conditioned on every preceding
+observation.
 
 @filebox["observation.rkt"]{@verbatim[#<<END
 #lang probalog
@@ -152,100 +149,30 @@ END
 ]}
 
 Observing @tt{Path("a", "c")} forces both edges to be present,
-so the posterior probability of @tt{Edge("a", "b")} is 1.
+so @tt{Edge("a", "b")} becomes certain.
 A query with only one possible outcome prints as that outcome
 rather than as a distribution over it.
-Observations are implemented with @racket[observe!].
-Observing something impossible --- a fact that no combination of base
-facts can derive, or one ruled out by an earlier observation ---
-is reported as an error against the statement that did it,
-rather than silently leaving every later query with nothing to report.
+Observing something impossible is reported as an error against the
+statement that did it.
 
-The parser rejects several classes of program statically:
+The parser rejects, at the location of the offending text:
 
 @itemlist[
-@item{A probability annotation must lie in @racket[(real-in 0 1)].}
-@item{Facts, queries, and observations must be @emph{ground} ---
-      every argument must be a constant.
-      A ``fact'' containing a variable is really a universally quantified rule,
-      which breaks the finiteness assumptions bottom-up evaluation relies on;
-      a query containing a variable has no body to bind it against.}
-@item{Every variable in a rule's head must appear somewhere in its body
-      (range restriction), since otherwise the rule could never fire.}
-@item{Every use of a predicate name across the file must agree on arity.
-      A mismatch is almost always a typo,
-      and would otherwise fail silently:
-      a clause with the wrong arity simply never unifies,
-      giving no hint as to why a rule never fires.}
-@item{An uppercase identifier in argument position is rejected,
-      since it is nearly always a constant missing its quotes.}]
+@item{a probability outside @racket[(real-in 0 1)];}
+@item{a fact, query, or observation that is not @emph{ground} ---
+      every argument must be a constant;}
+@item{a rule with a variable in its head that does not appear in its
+      body (range restriction);}
+@item{two uses of a predicate name that disagree on arity;}
+@item{an uppercase identifier in argument position, which is nearly
+      always a constant missing its quotes.}]
 
-Every one of these is reported at the location of the offending text,
-so an editor can highlight it.
-Parsing stops at the first error, however:
-a program with several mistakes reveals them one at a time.
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@section{Editor support}
-
-Probalog programs can be written in a @filepath{.rkt} file like any
-other Racket module, but the language also claims the extension
-@filepath{.pdl}, which is what an editor keys off of when it has no
-other way to know what it is looking at.
-
-@bold{DrRacket} needs nothing beyond the language itself.
-It reads the coloring, indentation, and interaction behavior from
-the @tt{#lang} line, so a Probalog file opened in DrRacket gets:
-
-@itemlist[
-@item{Syntax coloring in Probalog's own terms:
-      predicate names as keywords,
-      variables as symbols,
-      quoted strings and probabilities as constants,
-      and @tt{%} comments as comments.}
-@item{Indentation that understands statements.
-      A rule broken across lines aligns under its first body clause,
-      and a line following a completed statement returns to the margin.}
-@item{Check Syntax arrows for both variables and predicate names,
-      so @onscreen{Rename} and @onscreen{Jump to Binding} work on either.
-      A variable is bound by its first occurrence in its rule's body ---
-      the one that actually ranges over the database ---
-      and used by the others, including the ones in the head.
-      A predicate is bound file-wide by the first statement that defines it,
-      a fact declaration or a rule head,
-      and used by every body clause, query, and observation that names it,
-      so selecting one occurrence highlights the rest.}
-@item{An interactions area that reads Probalog statements,
-      submitting on a period rather than on a balanced parenthesis.
-      Racket expressions are accepted there too:
-      the saturated database is bound to @racket[probalog-result],
-      and the whole engine interface is in scope.}
-@item{Errors highlighted where they occur,
-      rather than reported against the parser's own source.}]
-
-@bold{VS Code} needs two separate things,
-because nothing there reads a @tt{#lang} line the way DrRacket does.
-Diagnostics, hover, and jump-to-binding come from
-@hyperlink[LANGSERVER]{racket-langserver},
-which runs the same Check Syntax pass documented above
-and so reports the same information;
-it works on @filepath{.rkt} files with no additional setup.
-Syntax coloring comes from the extension in
-@filepath{probalog/vscode},
-which is installed by linking it into the extensions directory:
-
-@verbatim|{
-$ ln -s "$(pwd)/probalog/vscode" ~/.vscode/extensions/probalog
-}|
-
-and restarting VS Code.
-It colors @filepath{.pdl} files.
-A Probalog program saved as @filepath{.rkt} will still be colored as
-Racket, since the Racket extension claims that extension and grammars
-are selected by file type rather than by language line.
+Parsing stops at the first error,
+so a program with several mistakes reveals them one at a time.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 @section{Engine}
+@defmodule[probalog/core]
 
 The engine is also usable directly from
 @racketmodname[roulette/example/disrupt],
@@ -254,8 +181,7 @@ A program is a list of base facts paired with probabilities
 and a list of rules.
 
 @examples[#:eval evaluator #:hidden
-  (require probalog/probalog-core
-	   probalog/probalog-set-equal)]
+  (require probalog/core)]
 @examples[#:eval evaluator #:label #f
   (define db
     (run-datalog
@@ -271,7 +197,6 @@ and a list of rules.
   (query-fact db (fact 'Edge (list "a" "b")))]
 
 @subsection{Saturation}
-@defmodule[probalog/probalog-set-equal]
 
 @defproc[(run-datalog [base-fact-probs (listof (cons/c fact? (real-in 0 1)))]
 		      [rules (listof rule?)])
@@ -293,7 +218,6 @@ and a list of rules.
 }
 
 @subsection{Facts, rules, and queries}
-@defmodule[probalog/probalog-core]
 
 @defstruct*[fact ([name symbol?] [args list?])]{
   A predicate applied to arguments.
@@ -324,7 +248,7 @@ and a list of rules.
   world remains, this raises an error instead.
 
   Every one of these procedures takes an optional @racket[where],
-  a source location like @tt{"reachability.pdl:5:0"}
+  a source location like @tt{"reachability.rkt:5:0"}
   used to attribute a failure to the statement responsible.
   The language supplies it;
   code calling the engine directly has no reason to.
@@ -497,7 +421,7 @@ to its @tech{guard}: the condition
 under which the element is a member.
 Elements are concrete; only membership is uncertain.
 All bindings of this module
-are re-exported by @racketmodname[probalog/probalog-core].
+are re-exported by @racketmodname[probalog/core].
 
 @examples[#:eval evaluator #:hidden
   (require probalog/hash-set
@@ -646,4 +570,3 @@ rather than scanning every fact of the predicate.
 @;; links
 
 @(define DATALOG "https://en.wikipedia.org/wiki/Datalog")
-@(define LANGSERVER "https://github.com/jeapostrophe/racket-langserver")

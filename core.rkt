@@ -226,6 +226,20 @@
                     (values (substitute (rule-head r) (car w)) (cdr w))))))
     (time-it! add-set-union-time! (lambda () (set-union acc fresh)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Saturation
+
+;; Semi-naive fixpoint: the delta is the keys whose guard changed, and
+;; guards are read from the accumulated set rather than the delta.
+(define (saturate-semi base rules)
+  (let loop ([full base] [delta (for/list ([(k g) base]) k)])
+    (define next (immediate-semi full delta rules))
+    (define changed (changed-keys full next))
+    (if (null? changed) full (loop next changed))))
+
+(define (run-datalog base-fact-probs rules)
+  (saturate-semi (make-base-set base-fact-probs) rules))
+
 ;; Reports a runtime failure the way the parser reports a syntax one:
 ;; prefixed with the source location of the statement responsible.
 ;; `where` is that location, already formatted, and is #f when these

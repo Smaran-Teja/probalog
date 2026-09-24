@@ -13,7 +13,7 @@
 ;;     polarity is #t for positive observations (! Foo(args).)
 ;;              and #f for negative observations (! ~Foo(args).)
 ;;   (#%probalog-scaffold scaffold)
-;; These head symbols are recognized by probalog/expander.rkt's
+;; These head symbols are recognized by probalog/lang/expander.rkt's
 ;; #%module-begin, which consumes and rewrites them — they're never
 ;; actually bound to real functions/macros.
 ;;
