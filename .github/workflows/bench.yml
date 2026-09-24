@@ -13,34 +13,38 @@ jobs:
 
       # Racket is pinned to a fixed release rather than "current" so that a
       # change in the numbers can be attributed to a probalog commit rather
-      # than to Racket moving underneath us. Building roulette/roulette-lib
-      # from source is the slow part, so the package addon dir is cached.
+      # than to Racket moving underneath us. Building roulette-lib from
+      # source is the slow part, so the package addon dir is cached.
+      #
+      # Both directories live outside the workspace on purpose. The package
+      # being installed is the repository root, and `raco pkg install`
+      # refuses to link a directory that encloses a collection path --
+      # which either of these would, if nested inside it.
       - uses: Bogdanp/setup-racket@v1.15
         with:
           architecture: "x64"
           distribution: "full"
           version: "9.1"
-          dest: "${{ github.workspace }}/.racket"
+          dest: "${{ runner.temp }}/racket"
           sudo: never
 
       - name: Point package installs at the addon dir
-        run: echo "PLTADDONDIR=${{ github.workspace }}/.racket-addon" >> "$GITHUB_ENV"
+        run: echo "PLTADDONDIR=${{ runner.temp }}/racket-addon" >> "$GITHUB_ENV"
 
       - name: Cache Racket packages
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/.racket-addon
+          path: ${{ runner.temp }}/racket-addon
           key: racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-${{ github.sha }}
           restore-keys: |
             racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-
             racket-pkgs-${{ runner.os }}-
 
-      # Pulls roulette (and roulette-lib with it) from the package catalog.
+      # Pulls roulette-lib from the package catalog.
       # An absolute path is required: `raco pkg install .` is rejected,
       # because the last path element has to be the package name.
       - name: Install probalog and its dependencies
         run: raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
-
 
       # guards.rkt reaches roulette's unexported BDD primitives with
       # require/expose, so an upstream rename shows up only when the module
