@@ -18,19 +18,20 @@
 
 ;; dependencies
 
-;; The only thing probalog needs from roulette is the rsdd BDD interface
-;; that `guards.rkt` builds on -- `roulette/engine/rsdd`, which lives in
-;; the roulette-lib package. Nothing here depends on the roulette or
-;; disrupt surface languages.
+;; `roulette-lib` alone: the only thing probalog takes from roulette is
+;; the rsdd BDD layer that `guards.rkt` is built on. `pmf.rkt` supplies
+;; the distribution type locally rather than borrowing disrupt's, which
+;; would drag in the whole roulette package.
+;;
+;; `rackunit-lib` is a runtime dependency, not just a test one:
+;; `guards.rkt` uses `require/expose` from it to reach BDD primitives
+;; that roulette does not yet export.
 (define deps
   '("base"
+    "data-lib"
     "rackunit-lib"
     "roulette-lib"))
 
 (define build-deps
   '("racket-doc"
-    "rackunit-lib"
-    "scribble-lib"
-    ;; documentation only: probalog.scrbl cross-references disrupt, which
-    ;; lives in the full roulette package rather than roulette-lib.
-    "roulette"))
+    "scribble-lib"))

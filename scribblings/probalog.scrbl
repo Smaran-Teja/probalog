@@ -7,7 +7,8 @@
 		     (only-in roulette/example/disrupt
 			      flip
 			      query
-			      observe!
+			      observe!)
+		     (only-in probalog/pmf
 			      pmf?)
 		     (only-in probalog/core
 			      fact
@@ -61,7 +62,7 @@
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 @;; constants
 
-@(define evaluator (make-base-eval #:lang 'roulette/example/disrupt))
+@(define evaluator (make-base-eval #:lang 'racket))
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 @;; document
@@ -174,8 +175,7 @@ so a program with several mistakes reveals them one at a time.
 @section{Engine}
 @defmodule[probalog/core]
 
-The engine is also usable directly from
-@racketmodname[roulette/example/disrupt],
+The engine is also usable directly from Racket,
 without going through the surface syntax.
 A program is a list of base facts paired with probabilities
 and a list of rules.
@@ -303,6 +303,35 @@ and a list of rules.
   which makes it the one place that decides
   what order the variables come in.
   Called by @racket[run-datalog].
+}
+
+@subsection{Probability mass functions}
+@defmodule[probalog/pmf]
+
+The distribution a query returns.
+Re-exported by @racketmodname[probalog/core],
+so requiring this module directly is only necessary
+to get the type without the engine.
+
+It deliberately mirrors the one in
+@racketmodname[roulette/example/disrupt] rather than reusing it,
+so that probalog depends on the BDD layer alone
+and not on the whole roulette package.
+The two are distinct types.
+
+@defproc[(pmf? [v any/c]) boolean?]{
+  Recognises a probability mass function.
+  A @racket[pmf?] is itself a procedure:
+  applying it to a value gives that value's probability,
+  and @racket[0] for anything outside the support.
+}
+
+@defproc[(pmf-support [p pmf?]) list?]{
+  The values carrying non-zero probability.
+}
+
+@defproc[(in-pmf [p pmf?]) sequence?]{
+  Iterates the value/probability pairs, as @racket[in-hash] does.
 }
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

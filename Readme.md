@@ -58,9 +58,9 @@ Fixpoint detection then uses the semantic equality of these sym-sets: two sets a
 
 Because a BDD has a total variable order, and `make-base-set` is the single place a base fact's guard is created, the order in which base facts are visited _is_ the variable order. It matters: a diagram has to keep alive every decision still relevant below the current level, so the cost depends on how far apart related variables sit.
 
-Rule bodies join on shared variables, which bind to shared constants, so two facts naming the same constant are exactly the ones that can meet in a derivation — adjacent is where they want to be. `order-base-facts` therefore visits constants breadth-first, the Cuthill-McKee family of linear-layout heuristics. It looks only at which facts share a constant and never at what a constant _is_, so renaming the data does not change the result.
+BDDs are very sensitive to variable order, drastically changing the performance of compilation based on which order the variables are set up it. `make-base-set` is the function that creates the variables corresponding to each fact in the initial set, so it determines the variable order. Therefore, we use a basic BFS algorithm to statically order the variables based on which variables are expected to be adjacent in an optimal ordering, from the presence of shared constants used as arguments in facts.
 
-Note the target is pathwidth rather than treewidth: a total variable order is a path decomposition. Elimination orders such as min-fill and min-degree minimise treewidth instead, and measured 2-3x worse here; they would be the right choice for a vtree-structured representation like an SDD, not for this one.
+Rule bodies typically join on shared variables (for example the path rule has a shared `y` argument), which bind to shared constants, so two facts naming the same constant are the ones that could likely meet in a derivation — so they should be adjacent. `order-base-facts` therefore visits constants breadth-first. It looks only at which facts share a constant and never at what a constant _is_, so renaming the data does not change the result.
 
 ## Performance optimizations
 
@@ -98,9 +98,9 @@ Applying a rule derives the same fact many different ways — on a densely conne
 
 ## Bayesian observations
 
-After the factset has been saturated, you can condition the probability distribution on observed evidence. This updates all subsequent queries to reflect the posterior `P(fact | evidence)` rather than the prior `P(fact)`.
+After a probalog program is run and a fixpoint is reached, you can condition the probability distribution on observed evidence. This updates all subsequent queries to reflect the posterior `P(fact | evidence)` rather than the prior `P(fact)`.
 
-A guard is opaque to Rosette, so rather than going through Roulette's `query` and `observe!` the engine computes the same semantics directly: conditioning conjoins the evidence onto an accumulated evidence guard, and a marginal is `P(fact and evidence) / P(evidence)` — which is what Roulette's `query` computes too, by normalising over `(if evidence e ⊥)`. An observation that no world satisfies is reported as an error rather than dividing by zero.
+A guard is opaque to Rosette, so rather than going through Roulette's `query` and `observe!` the engine computes the same semantics directly: conditioning conjoins the evidence onto an accumulated evidence guard, and a marginal is `P(fact and evidence) / P(evidence)`. An observation that no world satisfies is reported as an error rather than dividing by zero.
 
 In `#lang probalog`, observations use the `!` prefix:
 

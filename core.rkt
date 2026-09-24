@@ -1,7 +1,9 @@
-#lang roulette/example/disrupt
-(require "hash-set.rkt"
+#lang racket
+(require "pmf.rkt"
+         "hash-set.rkt"
          "guards.rkt")
 (provide (all-defined-out)
+         (all-from-out "pmf.rkt")
          (all-from-out "hash-set.rkt")
          (all-from-out "guards.rkt"))
 
@@ -293,7 +295,6 @@
 (define (add-evidence! g)
   (set-box! evidence (guard-and (current-evidence) g)))
 
-;; re-exporting query from roulette/example/disrupt as query-fact
 (define (query-fact result f #:where [where #f])
   (define pmf (guard->pmf (set-member? result f)))
   (unless pmf

@@ -8,16 +8,34 @@
          guard-known-true? guard-known-false?
          reset-guards! add-reset-hook! guard-stats)
 
-(require roulette/engine/rsdd
+(require (only-in roulette/engine/rsdd number-semiring)
+         rackunit/private/util
          data/gvector
          ffi/unsafe/custodian)
+
+;; WORKAROUND: roulette's `main` does not export its BDD layer -- the
+;; engine, the semirings and `bernoulli-measure` are all it provides --
+;; so the primitives this module is built on are pulled out by name.
+;;
+;; Replace this with a plain `require` as soon as roulette provides
+;; them. The cost of the hack is that a rename upstream becomes a
+;; load-time failure here rather than a compile-time one, and that none
+;; of these arrive with contracts.
+(require/expose roulette/engine/rsdd
+                (mk-bdd-manager-default-order free-bdd-manager
+                 rsdd-label rsdd-var
+                 rsdd-and rsdd-or rsdd-not rsdd-equal?
+                 rsdd-true? rsdd-false?
+                 make-rsdd-true make-rsdd-false
+                 wmc free-weight-cache
+                 rsdd-num-recursive-calls))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The manager
 ;;
 
 (define builder #f)
-(define weights #f)      ; label -> (cons false-weight true-weight)
+(define weights #f)      ; label -> (list false-weight true-weight semiring)
 (define cache #f)        ; scratch cells allocated by wmc
 (define ops 0)           ; every guard operation, for guard-stats
 
@@ -59,7 +77,7 @@
     [(= p 1) (guard-true)]
     [else
      (define l (rsdd-label builder))
-     (gvector-add! weights (cons (- 1 p) p))
+     (gvector-add! weights (list (- 1 p) p number-semiring))
      (rsdd-var builder l)]))
 
 (define (guard-and a b) (op!) (rsdd-and builder a b))
@@ -81,7 +99,10 @@
 ;; SHARP EDGE: `wmc` memoises in each node's scratch cell and never
 ;; invalidates, so results hold only while `weights` is unchanged. True
 ;; here: conditioning conjoins evidence rather than reweighting.
-(define (guard-prob g) (wmc g weights cache real-semiring))
+;; The empty `kept-map` is what makes this a plain weighted model count:
+;; roulette uses that argument to hold variables back as symbolic rather
+;; than summing them out, which probalog never wants.
+(define (guard-prob g) (wmc g (hash) weights cache number-semiring))
 
 (define (guard-stats)
   (list (cons 'guard-ops ops)

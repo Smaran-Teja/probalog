@@ -1,4 +1,4 @@
-#lang roulette/example/disrupt
+#lang racket
 ;; Standalone timing benchmark and plot: runs six programs, aggregates
 ;; where saturation spends its time, and renders a stacked bar. Uses
 ;; plot/no-gui, so `racket timing-plot.rkt` works as a script.

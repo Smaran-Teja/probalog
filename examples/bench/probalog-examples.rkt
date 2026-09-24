@@ -1,4 +1,4 @@
-#lang roulette/example/disrupt
+#lang racket
 (require probalog/core)
 (provide benchmark-results aggregate-timing run-benchmarks)
 
@@ -123,9 +123,10 @@
 ;; Benchmarks
 ;;
 ;; (name thunk query-fact), the fact being a sanity check that the run
-;; did something. Sizes are picked so each takes roughly half a
-;; second; cost grows steeply, so a single step can change the runtime
-;; severalfold.
+;; did something. Cost does not grow smoothly in the size parameters --
+;; supply-chain takes 10ms at (6 8), 3.9s at (8 8) and 169ms at (8 10) --
+;; so re-measure after any change rather than assuming a bigger size
+;; costs proportionally more.
 (define benchmarks
   (list
    (list "layered-dag"
@@ -138,7 +139,7 @@
          (lambda () (make-family 7))
          (fact 'Ancestor (list "P0" "P100")))
    (list "supply-chain"
-         (lambda () (make-supply-chain 12 10))
+         (lambda () (make-supply-chain 8 10))
          (fact 'NeedsAudit (list "pkg0_0")))))
 
 ;; Returns (name wall bindings guard union index). Timings

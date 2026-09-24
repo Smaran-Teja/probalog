@@ -1,0 +1,117 @@
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+name: benchmark
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Racket is pinned to a fixed release rather than "current" so that a
+      # change in the numbers can be attributed to a probalog commit rather
+      # than to Racket moving underneath us. Building roulette/roulette-lib
+      # from source is the slow part, so the package addon dir is cached.
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: "x64"
+          distribution: "full"
+          version: "9.1"
+          dest: "${{ github.workspace }}/.racket"
+          sudo: never
+
+      - name: Point package installs at the addon dir
+        run: echo "PLTADDONDIR=${{ github.workspace }}/.racket-addon" >> "$GITHUB_ENV"
+
+      - name: Cache Racket packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.racket-addon
+          key: racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-${{ github.sha }}
+          restore-keys: |
+            racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-
+            racket-pkgs-${{ runner.os }}-
+
+      # Pulls roulette (and roulette-lib with it) from the package catalog.
+      # An absolute path is required: `raco pkg install .` is rejected,
+      # because the last path element has to be the package name.
+      - name: Install probalog and its dependencies
+        run: raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
+
+
+      # guards.rkt reaches roulette's unexported BDD primitives with
+      # require/expose, so an upstream rename shows up only when the module
+      # is instantiated. Do that first and on its own, so the failure is
+      # legible instead of surfacing as a confusing benchmark crash.
+      - name: Smoke test the exposed roulette bindings
+        run: |
+          racket -e '(require probalog/guards)
+                     (unless (guard-known-true? (guard-true))
+                       (error "guards.rkt loaded but behaved unexpectedly"))
+                     (displayln "exposed roulette bindings OK")' \
+            || { echo "::error::probalog/guards failed to load. roulette may have renamed or removed a binding that guards.rkt pulls in with require/expose."; exit 1; }
+
+      - name: Run tests
+        run: raco test test/probalog.rkt
+
+      - name: Run benchmarks
+        run: |
+          cd examples/bench
+          timeout --kill-after=10s 10m racket run-benchmarks.rkt \
+            -o "${{ github.workspace }}/results.json" \
+            "${{ github.sha }}" "${{ github.event.head_commit.message }}"
+
+      - name: Summarise
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          d = json.load(open(os.environ["GITHUB_WORKSPACE"] + "/results.json"))
+          print("### probalog benchmarks\n")
+          print("commit `%s`\n" % d["commit"][:12])
+          print("| benchmark | wall (ms) | find-bindings | guard build | set-union | index |")
+          print("| --- | ---: | ---: | ---: | ---: | ---: |")
+          for b in d["benchmarks"]:
+              print("| %s | %.1f | %.1f | %.1f | %.1f | %.1f |" % (
+                  b["name"], b["wall_ms"], b["find_bindings_ms"],
+                  b["guard_build_ms"], b["set_union_ms"], b["index_ms"]))
+          t = d["total"]
+          print("| **total** | **%.1f** | %.1f | %.1f | %.1f | %.1f |" % (
+              t["wall_ms"], t["find_bindings_ms"], t["guard_build_ms"],
+              t["set_union_ms"], t["index_ms"]))
+          PY
+
+      # Always keep the run's own numbers, so the workflow is useful even
+      # before the history repository below is set up.
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: results.json
+
+      # Appending to a separate repository is what makes trends visible
+      # across commits. Skipped unless a PAT is configured, and only from
+      # the default branch, so forks and pull requests do not write to it.
+      - name: Append to benchmark history
+        if: >-
+          github.event_name == 'push'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "no PAT secret configured; skipping history push"
+            exit 0
+          fi
+          git clone --depth 1 \
+            "https://x-access-token:$PAT@github.com/Smaran-Teja/probalog-bench-data.git" history
+          mkdir -p history/results
+          cp results.json "history/results/${{ github.sha }}.json"
+          cd history
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "benchmark results for ${{ github.sha }}"
+          git push
