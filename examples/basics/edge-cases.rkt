@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Everything the language allows, in the smallest program that shows
 % each thing, with the expected answer beside it. For everything it

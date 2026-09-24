@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Pearl's burglary/earthquake alarm network.
 %

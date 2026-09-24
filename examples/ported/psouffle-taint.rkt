@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Taint analysis, from PSouffle's language_taint_mini regression case
 % (FMCAD 2026, https://doi.org/10.5281/zenodo.20091940).

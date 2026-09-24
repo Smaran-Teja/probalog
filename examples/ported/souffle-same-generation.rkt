@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % "Same generation" -- the standard Datalog benchmark, in Souffle's
 % test suite and in every textbook treatment of magic sets:

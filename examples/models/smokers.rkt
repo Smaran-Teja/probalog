@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % "Friends and smokers", the canonical probabilistic logic program.
 % People smoke from stress or from a friend's influence, and smokers

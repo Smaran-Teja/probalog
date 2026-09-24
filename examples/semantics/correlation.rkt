@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Derivations that share base facts have to be combined exactly. This
 % is the "disjoint-sum problem", and the reason an engine that just

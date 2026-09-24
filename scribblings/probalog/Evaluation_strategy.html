@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="content-type" content="text/html; charset=utf-8"/><meta name="viewport" content="width=device-width, initial-scale=0.8"/><title>6&nbsp;Evaluation strategy</title><link rel="stylesheet" type="text/css" href="scribble.css" title="default"/><link rel="stylesheet" type="text/css" href="racket.css" title="default"/><link rel="stylesheet" type="text/css" href="manual-style.css" title="default"/><link rel="stylesheet" type="text/css" href="manual-racket.css" title="default"/><script type="text/javascript" src="scribble-common.js"></script><script type="text/javascript" src="manual-racket.js"></script></head><body id="scribble-racket-lang-org"><div class="tocset"><div class="tocview"><div class="tocviewlist tocviewlisttopspace"><div class="tocviewtitle"><table cellspacing="0" cellpadding="0"><tr><td style="width: 1em;"><a href="javascript:void(0);" title="Expand/Collapse" class="tocviewtoggle" onclick="TocviewToggle(this,&quot;tocview_0&quot;);">&#9660;</a></td><td></td><td><a href="index.html" class="tocviewlink" data-pltdoc="x">Probalog</a></td></tr></table></div><div class="tocviewsublistonly" style="display: block;" id="tocview_0"><table cellspacing="0" cellpadding="0"><tr><td align="right">1&nbsp;</td><td><a href="Syntax.html" class="tocviewlink" data-pltdoc="x">Syntax</a></td></tr><tr><td align="right">2&nbsp;</td><td><a href="Editor_support.html" class="tocviewlink" data-pltdoc="x">Editor support</a></td></tr><tr><td align="right">3&nbsp;</td><td><a href="Engine.html" class="tocviewlink" data-pltdoc="x">Engine</a></td></tr><tr><td align="right">4&nbsp;</td><td><a href="Guards.html" class="tocviewlink" data-pltdoc="x">Guards</a></td></tr><tr><td align="right">5&nbsp;</td><td><a href="Symbolic_sets.html" class="tocviewlink" data-pltdoc="x">Symbolic sets</a></td></tr><tr><td align="right">6&nbsp;</td><td><a href="Evaluation_strategy.html" class="tocviewselflink" data-pltdoc="x">Evaluation strategy</a></td></tr></table></div></div></div></div><div class="maincolumn"><div class="main"><div class="navsettop"><span class="navleft"><div class="nosearchform"></div>&nbsp;&nbsp;<span class="tocsettoggle">&nbsp;&nbsp;<a href="javascript:void(0);" title="show/hide table of contents" onclick="TocsetToggle();">contents</a></span></span><span class="navright">&nbsp;&nbsp;<a href="Symbolic_sets.html" title="backward to &quot;5 Symbolic sets&quot;" data-pltdoc="x" rel="prev">&larr; prev</a>&nbsp;&nbsp;<a href="index.html" title="up to &quot;Probalog&quot;" data-pltdoc="x">up</a>&nbsp;&nbsp;<span class="nonavigation">next &rarr;</span></span>&nbsp;</div><section class="SsectionLevel2" id="section 6"><h2 class="heading">6<span class="stt">&nbsp;</span><a name="(part._.Evaluation_strategy)"></a>Evaluation strategy<span class="button-group"><a href="#(part._.Evaluation_strategy)" class="heading-anchor" title="Link to here">🔗</a><span style="visibility: hidden"> </span></span></h2><p>Saturation is bottom-up and semi-naive.
+A naive round re-joins the entire database against every rule body,
+rediscovering everything found in earlier rounds;
+semi-naive evaluation instead tracks the facts
+newly derived in the previous round
+and computes only derivations that use one of them
+in at least one clause position,
+trying each position in turn.
+Any derivation this skips
+used only older facts,
+and so was already found.</p><p>There is a wrinkle in transplanting that rule
+onto a database whose facts carry guards.
+Classically a derivation from facts that all existed before
+was already performed, so it can be skipped;
+here a fact can exist from round one
+while its guard keeps weakening for many rounds.
+So the delta selects only <span class="emph">which</span> facts to match,
+and every guard in a derivation
+is read out of the accumulated database
+rather than out of the delta.
+Deriving from a delta <span class="emph">of guards</span> instead
+builds the condition &ldquo;newly derivable this round&rdquo;,
+which has to encode the absence of the shorter derivations
+as well as the presence of a new one;
+on a friends-and-smokers ring of 14
+that cost 231 million diagram operations
+where this operator costs under 180 thousand,
+for the same result.</p><p>Fixpoint detection compares the guards of the new database
+against the old with <span class="RktSym"><a href="Symbolic_sets.html#%28def._%28%28lib._probalog%2Fhash-set..rkt%29._set-equal~3f%29%29" class="RktValLink" data-pltdoc="x">set-equal?</a></span>,
+restricted to the facts that actually changed in the last round.
+Comparing canonical guards is a pointer comparison,
+so a round&rsquo;s fixpoint test is proportional
+to the size of the change rather than the size of the database.</p><p>Matching is driven by an index.
+Before each round the facts are grouped by predicate name,
+and within a predicate by the value at each argument position.
+When a clause is matched,
+any argument whose value is already known &#8212;<wbr></wbr>
+a constant, or a variable bound by an earlier clause of the same body &#8212;<wbr></wbr>
+selects the facts that agree at that position,
+rather than scanning every fact of the predicate.</p></section><div class="navsetbottom"><span class="navleft"><div class="nosearchform"></div>&nbsp;&nbsp;<span class="tocsettoggle">&nbsp;&nbsp;<a href="javascript:void(0);" title="show/hide table of contents" onclick="TocsetToggle();">contents</a></span></span><span class="navright">&nbsp;&nbsp;<a href="Symbolic_sets.html" title="backward to &quot;5 Symbolic sets&quot;" data-pltdoc="x" rel="prev">&larr; prev</a>&nbsp;&nbsp;<a href="index.html" title="up to &quot;Probalog&quot;" data-pltdoc="x">up</a>&nbsp;&nbsp;<span class="nonavigation">next &rarr;</span></span>&nbsp;</div></div></div><div id="contextindicator">&nbsp;</div></body></html>

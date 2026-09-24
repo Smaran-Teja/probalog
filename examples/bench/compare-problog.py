@@ -44,7 +44,7 @@ import time
 PROBLOG = os.environ.get("PROBLOG", "problog")
 RACKET = os.environ.get("RACKET", "racket")
 
-HEADER = "#lang roulette/example/probalog"
+HEADER = "#lang probalog"
 
 
 # --------------------------------------------------------------------------

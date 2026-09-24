@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Spread of an infection through a contact network over time, after
 % ProbLog's epidemic/viral-marketing examples.

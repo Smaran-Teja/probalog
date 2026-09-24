@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Mendelian inheritance of a recessive disease, after ProbLog's
 % genetics/bloodtype examples.

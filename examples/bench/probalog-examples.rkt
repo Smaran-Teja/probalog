@@ -1,6 +1,6 @@
 #lang roulette/example/disrupt
-(require roulette/example/probalog/probalog-core
-         roulette/example/probalog/probalog-set-equal)
+(require probalog/probalog-core
+         probalog/probalog-set-equal)
 (provide benchmark-results aggregate-timing run-benchmarks)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

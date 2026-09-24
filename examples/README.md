@@ -1,6 +1,6 @@
 # Probalog examples and benchmarks
 
-Example programs for `#lang roulette/example/probalog`, a probabilistic
+Example programs for `#lang probalog`, a probabilistic
 Datalog built on [Roulette](https://github.com/Smaran-Teja/roulette),
 together with benchmarks comparing it against ProbLog, cplint/PITA and
 Soufflé.

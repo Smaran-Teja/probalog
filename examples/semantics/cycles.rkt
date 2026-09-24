@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Recursion in every shape. Not a model of anything -- each section
 % isolates one kind.

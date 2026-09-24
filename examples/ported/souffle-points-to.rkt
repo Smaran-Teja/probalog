@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Andersen's points-to analysis -- the example Souffle's own tutorial
 % is built around, and the core of Doop-style program analysis.

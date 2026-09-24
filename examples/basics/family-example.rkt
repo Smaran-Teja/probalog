@@ -1,4 +1,4 @@
-#lang roulette/example/probalog 
+#lang probalog 
 
 % Classic family-relations Datalog, with one uncertain parentage
 % record so uncertainty propagates into the derived relations.

@@ -1,4 +1,4 @@
-#lang roulette/example/probalog
+#lang probalog
 
 % Biomine -- ProbLog's flagship application, and the problem it was
 % built for. Biomine is a biological network whose nodes are genes,
