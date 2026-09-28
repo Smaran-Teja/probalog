@@ -23,6 +23,14 @@ case "$ROOT" in
         exit 1 ;;
 esac
 CUDD="$ROOT/cudd-install"
+# The shared library's name differs by platform. Getting this wrong still
+# lets souffle itself build, but every program it compiles then fails to
+# link, so the symptom is COMPILE FAIL on every size rather than a build
+# error.
+case "$(uname -s)" in
+  Darwin) CUDD_LIB="$CUDD/lib/libcudd.dylib" ;;
+  *)      CUDD_LIB="$CUDD/lib/libcudd.so" ;;
+esac
 SRC="$ROOT/psouffle/souffle-full-artifact-ae"
 BIN="$SRC/build/src/souffle"
 
@@ -42,7 +50,7 @@ for tool in cmake bison; do
     echo "$tool not found; on macOS: brew install cmake bison" >&2; exit 1; }
 done
 
-if [ ! -f "$CUDD/lib/libcudd.dylib" ] && [ ! -f "$CUDD/lib/libcudd.so" ]; then
+if [ ! -f "$CUDD_LIB" ]; then
   say "building CUDD 3.0.0 (required for exact inference)"
   mkdir -p "$ROOT"
   curl -sL "$CUDD_SRC" -o "$ROOT/cudd.tgz"
@@ -61,11 +69,15 @@ if [ ! -x "$BIN" ]; then
   cmake -S "$SRC" -B "$SRC/build" -DCMAKE_BUILD_TYPE=Release \
         -DSOUFFLE_ENABLE_TESTING=OFF \
         -DCUDD_INCLUDE_DIR="$CUDD/include" \
-        -DCUDD_LIBRARY="$CUDD/lib/libcudd.dylib" >/dev/null
+        -DCUDD_LIBRARY="$CUDD_LIB" >/dev/null
   cmake --build "$SRC/build" -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" >/dev/null
 fi
 
 say "$("$BIN" --version 2>&1 | head -1)"
 say "running compare-psouffle.py $*"
 echo
+# CUDD is installed under a private prefix, so the programs souffle
+# compiles need telling where to load it from. macOS resolves it through
+# the install name recorded at link time; Linux needs the search path.
+export LD_LIBRARY_PATH="$CUDD/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 PSOUFFLE="$BIN" exec python3 "$HERE/compare-psouffle.py" "$@"

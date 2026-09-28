@@ -119,6 +119,25 @@ def timed(cmd, timeout, cwd=None):
     return time.perf_counter() - t0, r.stdout
 
 
+# A failure to compile is usually the environment rather than the program,
+# so every size fails the same way. Show the first one in full, so the
+# cause is in the log, and just count the rest.
+#
+# stdout, not stderr: stdout is block-buffered when piped, so anything on
+# stderr surfaces ahead of the table rather than under the row it explains,
+# and a log trimmed to its tail would lose it altogether.
+_compiles = {"ok": 0, "failed": 0}
+
+def report_compile_failure(detail):
+    _compiles["failed"] += 1
+    if _compiles["failed"] == 1:
+        lines = [l for l in detail.splitlines() if l.strip() and l != "ERROR"]
+        for l in lines[-25:]:
+            print("    | " + l)
+    elif _compiles["failed"] == 2:
+        print("    | (further compile failures not shown)")
+
+
 # `rel("a", 15) : 0.435666`, with strings quoted and numbers bare.
 ANSWER = re.compile(r"^(\w+)\((.*)\)\s*:\s*([0-9.eE+-]+)\s*$")
 
@@ -174,11 +193,13 @@ def run_suite(name, spec, args, tmpdir):
         # PSouffle emits C++ and builds a binary, which probalog has no
         # counterpart for. The headline number is the run.
         exe = os.path.join(case, "compute")
-        tc, _ = timed([PSOUFFLE, "-F", indir, "-D", outdir, prog, "-o", exe],
-                      args.compile_timeout, cwd=case)
+        tc, cerr = timed([PSOUFFLE, "-F", indir, "-D", outdir, prog, "-o", exe],
+                         args.compile_timeout, cwd=case)
         if tc is None:
             print(f"{str(params):<12}{'-':>10}{'COMPILE FAIL':>11}")
+            report_compile_failure(cerr)
             continue
+        _compiles["ok"] += 1
         tp, po = timed([exe, "-F", indir, "-D", outdir, "--det-opt",
                         "--rewrite", "--logfile", "run"], args.timeout)
         answers = psouffle_answers(outdir) if tp is not None else None
@@ -226,6 +247,12 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         for name in (args.suites or list(SUITES)):
             run_suite(name, SUITES[name], args, tmpdir)
+
+    # Nothing compiled means nothing was compared. Say so with the exit
+    # status, rather than printing a table of failures and succeeding.
+    if _compiles["failed"] and not _compiles["ok"]:
+        sys.exit(f"\nPSouffle compiled none of the {_compiles['failed']} "
+                 "programs, so no comparison was made (see the error above).")
 
 
 if __name__ == "__main__":
