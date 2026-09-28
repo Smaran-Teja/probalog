@@ -2,10 +2,9 @@
 
 ;; Probability mass functions: what a query returns.
 ;;
-;; This mirrors the pmf in roulette's disrupt, and exists so that probalog
-;; depends only on roulette-lib -- the BDD layer `guards.rkt` is built on --
-;; rather than on the full roulette package. The two types are separate, so
-;; a disrupt pmf is not a probalog pmf; nothing crosses that boundary.
+;; This mirrors the pmf in roulette's disrupt rather than reusing it, so
+;; that probalog carries no dependency on roulette's Racket code. The two
+;; are separate types; nothing crosses that boundary.
 
 (provide pmf pmf? pmf-hash pmf-support in-pmf for/pmf)
 

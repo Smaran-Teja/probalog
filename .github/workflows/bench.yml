@@ -13,8 +13,8 @@ jobs:
 
       # Racket is pinned to a fixed release rather than "current" so that a
       # change in the numbers can be attributed to a probalog commit rather
-      # than to Racket moving underneath us. Building roulette-lib from
-      # source is the slow part, so the package addon dir is cached.
+      # than to Racket moving underneath us. Fetching the rsdd shared
+      # library is the slow part, so the package addon dir is cached.
       #
       # Both directories live outside the workspace on purpose. The package
       # being installed is the repository root, and `raco pkg install`
@@ -40,23 +40,12 @@ jobs:
             racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-
             racket-pkgs-${{ runner.os }}-
 
-      # Pulls roulette-lib from the package catalog.
+      # Pulls the `roulette-*` platform package carrying librsdd; none of
+      # roulette's Racket code is involved.
       # An absolute path is required: `raco pkg install .` is rejected,
       # because the last path element has to be the package name.
       - name: Install probalog and its dependencies
         run: raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
-
-      # guards.rkt reaches roulette's unexported BDD primitives with
-      # require/expose, so an upstream rename shows up only when the module
-      # is instantiated. Do that first and on its own, so the failure is
-      # legible instead of surfacing as a confusing benchmark crash.
-      - name: Smoke test the exposed roulette bindings
-        run: |
-          racket -e '(require probalog/guards)
-                     (unless (guard-known-true? (guard-true))
-                       (error "guards.rkt loaded but behaved unexpectedly"))
-                     (displayln "exposed roulette bindings OK")' \
-            || { echo "::error::probalog/guards failed to load. roulette may have renamed or removed a binding that guards.rkt pulls in with require/expose."; exit 1; }
 
       - name: Run tests
         run: raco test test/probalog.rkt

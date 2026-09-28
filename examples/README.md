@@ -1,14 +1,13 @@
 # Probalog examples and benchmarks
 
-Example programs for `#lang probalog`, a probabilistic
-Datalog built on [Roulette](https://github.com/Smaran-Teja/roulette),
-together with benchmarks comparing it against ProbLog, cplint/PITA and
-Soufflé.
+Example programs for `#lang probalog`, a probabilistic Datalog with
+exact inference by knowledge compilation, together with benchmarks
+comparing it against ProbLog, cplint/PITA and Soufflé.
 
-Install the language first, from the root of a roulette checkout:
+Install the language first, from the root of a probalog checkout:
 
 ```
-raco pkg install --auto roulette/ roulette-lib/
+raco pkg install --auto
 ```
 
 Then run any example:
@@ -29,8 +28,8 @@ for f in */*.rkt; do echo "== $f"; racket "$f"; done
 
 These are examples, not tests. The correctness suite — expected query
 probabilities, every read error, every run-time error — lives with the
-implementation, at `roulette/roulette/test/probalog.rkt`, and runs with
-`raco test roulette/test/probalog.rkt`.
+implementation, at `test/probalog.rkt`, and runs with
+`raco test test/probalog.rkt`.
 
 ## `basics/`
 

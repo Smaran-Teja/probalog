@@ -4,10 +4,6 @@
 @;; require
 
 @(require (for-label racket/base
-		     (only-in roulette/example/disrupt
-			      flip
-			      query
-			      observe!)
 		     (only-in probalog/pmf
 			      pmf?)
 		     (only-in probalog/core
@@ -239,13 +235,11 @@ and a list of rules.
   conditioned on all observations made so far ---
   that is, @math{P(f ∧ evidence) / P(evidence)}.
 
-  This is what @racket[query] computes for
-  @racket[(set-member? result f)], but it is computed directly:
-  a @tech{guard} is a diagram Rosette cannot see into, so the engine
-  does its own conditioning rather than going through Roulette's
-  @racket[query] and @racket[observe!].
-  Where @racket[query] would return @racket[#f] because no possible
-  world remains, this raises an error instead.
+  Conditioning is computed here rather than deferred to a host
+  language: a @tech{guard} is a diagram, not a term an external solver
+  can see into, so the engine conjoins evidence and normalises itself.
+  Where no possible world remains, this raises an error rather than
+  returning @racket[#f].
 
   Every one of these procedures takes an optional @racket[where],
   a source location like @tt{"reachability.rkt:5:0"}
@@ -313,10 +307,8 @@ Re-exported by @racketmodname[probalog/core],
 so requiring this module directly is only necessary
 to get the type without the engine.
 
-It deliberately mirrors the one in
-@racketmodname[roulette/example/disrupt] rather than reusing it,
-so that probalog depends on the BDD layer alone
-and not on the whole roulette package.
+It mirrors the one in Roulette's disrupt rather than reusing it,
+so that probalog carries no dependency on roulette's Racket code.
 The two are distinct types.
 
 @defproc[(pmf? [v any/c]) boolean?]{
@@ -341,7 +333,8 @@ The two are distinct types.
 A @deftech{guard} is the condition under which something holds --- for a
 @tech{symbolic set}, the condition under which an element is a member.
 Guards are binary decision diagrams, built through this module on top of
-the primitives @racketmodname[roulette/engine/rsdd] exports.
+the bindings @racketmodfont{probalog/rsdd} provides,
+which bind rsdd's BDD builder over the FFI.
 
 The representation is chosen for canonicality: two guards that mean the
 same thing are the same object. Or-ing in a disjunct already implied
