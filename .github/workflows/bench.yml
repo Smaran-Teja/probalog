@@ -42,10 +42,21 @@ jobs:
 
       # Pulls the `roulette-*` platform package carrying librsdd; none of
       # roulette's Racket code is involved.
-      # An absolute path is required: `raco pkg install .` is rejected,
-      # because the last path element has to be the package name.
+      #
+      # On a cache hit the package is already linked and `raco pkg install`
+      # refuses, so update first and fall back to install on a cold cache.
+      # `raco setup` is then explicit: updating a link whose dependencies
+      # are unchanged does no work at all, and the checkout it points at is
+      # fresh, so without this nothing would be compiled until the
+      # benchmarks ran -- putting compilation inside the timings.
+      #
+      # An absolute path is required for the install: `raco pkg install .`
+      # is rejected, because the last path element has to be the name.
       - name: Install probalog and its dependencies
-        run: raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
+        run: |
+          raco pkg update --auto --no-docs probalog \
+            || raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
+          raco setup --no-docs --pkgs probalog
 
       - name: Run tests
         run: raco test test/probalog.rkt
@@ -108,3 +119,145 @@ jobs:
           git add .
           git commit -m "benchmark results for ${{ github.sha }}"
           git push
+
+  # Cross-engine comparisons. These check that probalog agrees with other
+  # engines as well as how fast it is, so they are informative rather than
+  # gating: the job is `continue-on-error`, and a matrix entry whose tool
+  # fails to install does not hold up the rest.
+  #
+  # One entry per tool so they run in parallel; wall-clock is the slowest,
+  # not the sum. Every run uses `--quick` and a per-run timeout. souffle,
+  # problog and cplint install in seconds; psouffle and scallop are built
+  # from source and are cached, so only a cold cache pays for them.
+  comparisons:
+    name: compare vs ${{ matrix.tool }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [problog, souffle, cplint, psouffle, scallop]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: "x64"
+          distribution: "full"
+          version: "9.1"
+          dest: "${{ runner.temp }}/racket"
+          sudo: never
+
+      - name: Point package installs at the addon dir
+        run: echo "PLTADDONDIR=${{ runner.temp }}/racket-addon" >> "$GITHUB_ENV"
+
+      - name: Cache Racket packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/racket-addon
+          key: racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-${{ github.sha }}
+          restore-keys: |
+            racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-
+            racket-pkgs-${{ runner.os }}-
+
+      - name: Install probalog
+        run: |
+          raco pkg update --auto --no-docs probalog \
+            || raco pkg install --auto --no-docs "$GITHUB_WORKSPACE"
+          raco setup --no-docs --pkgs probalog
+
+      # --- per-tool setup -------------------------------------------------
+
+      # The venv embeds absolute paths, so it is only reusable because the
+      # workspace path is fixed on hosted runners.
+      - name: Cache ProbLog virtualenv
+        if: matrix.tool == 'problog'
+        uses: actions/cache@v4
+        with:
+          path: examples/bench/.venv
+          key: problog-venv-${{ runner.os }}-${{ hashFiles('examples/bench/compare-problog.sh') }}
+
+      - name: Install Souffle
+        if: matrix.tool == 'souffle'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y souffle \
+            || { ver=2.4.1; \
+                 curl -fsSL -o /tmp/souffle.deb \
+                   "https://github.com/souffle-lang/souffle/releases/download/${ver}/x86_64-ubuntu-2204-souffle-${ver}-Linux.deb"; \
+                 sudo apt-get install -y /tmp/souffle.deb; }
+          souffle --version | head -1
+
+      - name: Install SWI-Prolog
+        if: matrix.tool == 'cplint'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog
+          swipl --version
+
+      # cplint is a pack, compiled on first install into the user's pack dir.
+      - name: Cache cplint pack
+        if: matrix.tool == 'cplint'
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/swi-prolog/pack
+          key: cplint-pack-${{ runner.os }}-v1
+
+      - name: Install PSouffle build prerequisites
+        if: matrix.tool == 'psouffle'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake bison flex libffi-dev zlib1g-dev \
+                                  libncurses-dev mcpp
+
+      # The script builds CUDD and the Souffle fork here and reuses them.
+      - name: Cache PSouffle build
+        if: matrix.tool == 'psouffle'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/probalog-psouffle
+          key: psouffle-${{ runner.os }}-${{ hashFiles('examples/bench/compare-psouffle.sh') }}
+
+      - name: Cache Scallop build
+        if: matrix.tool == 'scallop'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+            ${{ runner.temp }}/scallop
+          key: scallop-${{ runner.os }}-v1
+
+      - name: Build Scallop's scli
+        if: matrix.tool == 'scallop'
+        run: |
+          src="${{ runner.temp }}/scallop"
+          if [ ! -x "$src/target/release/scli" ]; then
+            git clone --depth 1 https://github.com/scallop-lang/scallop "$src"
+            rustup toolchain install nightly --profile minimal
+            cargo +nightly build --release \
+              --manifest-path "$src/etc/scli/Cargo.toml"
+          fi
+          echo "SCLI=$src/target/release/scli" >> "$GITHUB_ENV"
+
+      # --- run ------------------------------------------------------------
+
+      # pipefail so a failing comparison is not masked by `tee` succeeding.
+      # The job is continue-on-error, so this reports rather than gates.
+      - name: Run comparison
+        run: |
+          set -o pipefail
+          cd examples/bench
+          ./compare-${{ matrix.tool }}.sh --quick --timeout 30 \
+            2>&1 | tee "$RUNNER_TEMP/compare.txt"
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### probalog vs ${{ matrix.tool }}"
+            echo
+            echo '```'
+            tail -60 "$RUNNER_TEMP/compare.txt" 2>/dev/null || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
