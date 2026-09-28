@@ -205,7 +205,7 @@ def run_suite(name, spec, args, tmpdir):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("suites", nargs="*", choices=list(SUITES) + [], default=[])
+    ap.add_argument("suites", nargs="*", choices=list(SUITES) + [])
     ap.add_argument("--quick", action="store_true", help="small sizes only")
     ap.add_argument("--timeout", type=float, default=10,
                     help="per-run timeout in seconds (default 10)")

@@ -9,7 +9,7 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Racket is pinned to a fixed release rather than "current" so that a
       # change in the numbers can be attributed to a probalog commit rather
@@ -32,7 +32,7 @@ jobs:
         run: echo "PLTADDONDIR=${{ runner.temp }}/racket-addon" >> "$GITHUB_ENV"
 
       - name: Cache Racket packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/racket-addon
           key: racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-${{ github.sha }}
@@ -90,7 +90,7 @@ jobs:
       # Always keep the run's own numbers, so the workflow is useful even
       # before the history repository below is set up.
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results-${{ github.sha }}
           path: results.json
@@ -139,7 +139,7 @@ jobs:
       matrix:
         tool: [problog, souffle, cplint, psouffle, scallop]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: Bogdanp/setup-racket@v1.15
         with:
@@ -153,7 +153,7 @@ jobs:
         run: echo "PLTADDONDIR=${{ runner.temp }}/racket-addon" >> "$GITHUB_ENV"
 
       - name: Cache Racket packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/racket-addon
           key: racket-pkgs-${{ runner.os }}-${{ hashFiles('info.rkt') }}-${{ github.sha }}
@@ -173,20 +173,32 @@ jobs:
       # workspace path is fixed on hosted runners.
       - name: Cache ProbLog virtualenv
         if: matrix.tool == 'problog'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: examples/bench/.venv
           key: problog-venv-${{ runner.os }}-${{ hashFiles('examples/bench/compare-problog.sh') }}
 
+      # Souffle is not in Ubuntu's repositories, so take the .deb from the
+      # latest upstream release. The asset is named for the Ubuntu version
+      # it was built against, so pick the one matching this runner and fall
+      # back to the newest available if that image is too new to have one.
       - name: Install Souffle
         if: matrix.tool == 'souffle'
         run: |
+          set -o pipefail
+          rel=$(curl -fsSL https://api.github.com/repos/souffle-lang/souffle/releases/latest)
+          want=$(lsb_release -rs | tr -d .)
+          url=$(printf '%s' "$rel" | jq -r --arg v "$want" \
+                '.assets[] | select(.name | test("ubuntu-" + $v + ".*\\.deb$")) | .browser_download_url')
+          if [ -z "$url" ]; then
+            echo "no .deb built for Ubuntu $want; using the newest available"
+            url=$(printf '%s' "$rel" | jq -r \
+                  '[.assets[] | select(.name | test("ubuntu.*\\.deb$")) | .browser_download_url] | sort | last')
+          fi
+          echo "installing $url"
+          curl -fsSL -o /tmp/souffle.deb "$url"
           sudo apt-get update
-          sudo apt-get install -y souffle \
-            || { ver=2.4.1; \
-                 curl -fsSL -o /tmp/souffle.deb \
-                   "https://github.com/souffle-lang/souffle/releases/download/${ver}/x86_64-ubuntu-2204-souffle-${ver}-Linux.deb"; \
-                 sudo apt-get install -y /tmp/souffle.deb; }
+          sudo apt-get install -y /tmp/souffle.deb
           souffle --version | head -1
 
       - name: Install SWI-Prolog
@@ -199,7 +211,7 @@ jobs:
       # cplint is a pack, compiled on first install into the user's pack dir.
       - name: Cache cplint pack
         if: matrix.tool == 'cplint'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/swi-prolog/pack
           key: cplint-pack-${{ runner.os }}-v1
@@ -214,14 +226,14 @@ jobs:
       # The script builds CUDD and the Souffle fork here and reuses them.
       - name: Cache PSouffle build
         if: matrix.tool == 'psouffle'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/probalog-psouffle
           key: psouffle-${{ runner.os }}-${{ hashFiles('examples/bench/compare-psouffle.sh') }}
 
       - name: Cache Scallop build
         if: matrix.tool == 'scallop'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo
