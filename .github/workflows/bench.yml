@@ -132,8 +132,8 @@ jobs:
   #
   # One entry per tool so they run in parallel; wall-clock is the slowest,
   # not the sum. Every run uses `--quick` and a per-run timeout. souffle,
-  # problog and cplint install in seconds; psouffle and scallop are built
-  # from source and are cached, so only a cold cache pays for them.
+  # problog and cplint install in seconds; psouffle is built from source
+  # and cached, so only a cold cache pays for it.
   comparisons:
     name: compare vs ${{ matrix.tool }}
     runs-on: ubuntu-latest
@@ -142,7 +142,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tool: [problog, souffle, cplint, psouffle, scallop]
+        tool: [problog, souffle, cplint, psouffle]
     steps:
       - uses: actions/checkout@v5
 
@@ -206,12 +206,18 @@ jobs:
           sudo apt-get install -y /tmp/souffle.deb
           souffle --version | head -1
 
+      # Ubuntu's own swi-prolog is 9.0.4, and PITA errored on every query
+      # under it while working under the 10.0.2 used locally. The project's
+      # PPA tracks the current stable release -- 10.0.2 as well -- so CI and
+      # local runs use the same Prolog.
       - name: Install SWI-Prolog
         if: matrix.tool == 'cplint'
         run: |
+          sudo apt-add-repository -y ppa:swi-prolog/stable
           sudo apt-get update
-          sudo apt-get install -y swi-prolog
+          sudo apt-get install -y swi-prolog-nox
           swipl --version
+          echo "SWIPL_VERSION=$(swipl --version | awk '{print $3}')" >> "$GITHUB_ENV"
 
       # cplint is a pack, compiled on first install into the user's pack dir.
       - name: Cache cplint pack
@@ -219,7 +225,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.local/share/swi-prolog/pack
-          key: cplint-pack-${{ runner.os }}-v1
+          # Keyed on the Prolog version: the pack's foreign libraries are
+          # built against it, and one installed under another must not be
+          # restored.
+          key: cplint-pack-${{ runner.os }}-swipl-${{ env.SWIPL_VERSION }}
 
       # libreadline-dev is needed at *comparison* time, not build time:
       # souffle bakes `-lreadline` into the link line of every program it
@@ -240,27 +249,6 @@ jobs:
         with:
           path: ~/.cache/probalog-psouffle
           key: psouffle-${{ runner.os }}-${{ hashFiles('examples/bench/compare-psouffle.sh') }}
-
-      - name: Cache Scallop build
-        if: matrix.tool == 'scallop'
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo
-            ${{ runner.temp }}/scallop
-          key: scallop-${{ runner.os }}-v1
-
-      - name: Build Scallop's scli
-        if: matrix.tool == 'scallop'
-        run: |
-          src="${{ runner.temp }}/scallop"
-          if [ ! -x "$src/target/release/scli" ]; then
-            git clone --depth 1 https://github.com/scallop-lang/scallop "$src"
-            rustup toolchain install nightly --profile minimal
-            cargo +nightly build --release \
-              --manifest-path "$src/etc/scli/Cargo.toml"
-          fi
-          echo "SCLI=$src/target/release/scli" >> "$GITHUB_ENV"
 
       # --- run ------------------------------------------------------------
 

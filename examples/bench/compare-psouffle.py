@@ -11,7 +11,6 @@ differs from probalog in some way that has to be corrected for:
 
   ProbLog, PITA   Prolog rather than Datalog, and goal-directed, so
                   they ground only what one query needs
-  Scallop         bottom-up Datalog, but top-k approximate
   Praline         bottom-up Datalog, but computes bounds under unknown
                   correlations rather than exact marginals
 

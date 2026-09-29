@@ -99,6 +99,14 @@ def pita_goal(goals):
 # Running
 # --------------------------------------------------------------------------
 
+# The table only has room for "ERROR", so the detail is kept here and the
+# first failure per engine is printed under its row. Without it a run that
+# fails on every size -- as this one did on every CI run -- says nothing
+# about why.
+_failures = {}
+_shown = set()
+
+
 def timed(cmd, timeout):
     t0 = time.perf_counter()
     try:
@@ -108,8 +116,17 @@ def timed(cmd, timeout):
     except FileNotFoundError:
         return None, "NOT FOUND"
     if r.returncode != 0:
+        _failures[cmd[0]] = (r.stdout + "\n" + r.stderr).strip()
         return None, "ERROR"
     return time.perf_counter() - t0, r.stdout
+
+
+def show_failure(engine):
+    if engine in _failures and engine not in _shown:
+        _shown.add(engine)
+        lines = [l for l in _failures[engine].splitlines() if l.strip()]
+        for l in lines[-20:] or ["(no output)"]:
+            print("    | " + l)
 
 
 def first_float(text):
@@ -156,6 +173,10 @@ def run_suite(name, spec, args, tmpdir):
         ratio = f"{tr / tc:7.1f}x" if (tc and tr) else "        -"
         print(f"{str(params):<12}{fmt(tc, oc):>10}{fmt(tr, orr):>11}"
               f"{ratio:>9}  {agree:<7}{val}")
+        if tc is None:
+            show_failure(SWIPL)
+        if tr is None:
+            show_failure(RACKET)
         sys.stdout.flush()
 
 
