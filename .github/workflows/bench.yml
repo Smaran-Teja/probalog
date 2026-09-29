@@ -216,12 +216,17 @@ jobs:
           path: ~/.local/share/swi-prolog/pack
           key: cplint-pack-${{ runner.os }}-v1
 
+      # libreadline-dev is needed at *comparison* time, not build time:
+      # souffle bakes `-lreadline` into the link line of every program it
+      # compiles, and `-l` resolves to the unversioned libreadline.so, which
+      # only the -dev package provides. Without it every program fails with
+      # "cannot find -lreadline".
       - name: Install PSouffle build prerequisites
         if: matrix.tool == 'psouffle'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake bison flex libffi-dev zlib1g-dev \
-                                  libncurses-dev mcpp
+                                  libncurses-dev libreadline-dev mcpp
 
       # The script builds CUDD and the Souffle fork here and reuses them.
       - name: Cache PSouffle build
