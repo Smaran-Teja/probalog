@@ -68,23 +68,28 @@ jobs:
             -o "${{ github.workspace }}/results.json" \
             "${{ github.sha }}" "${{ github.event.head_commit.message }}"
 
+      # The table goes to the Summary tab; the one-line total is also raised
+      # as an annotation so it shows on the run page without clicking in.
       - name: Summarise
         run: |
-          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
           import json, os
           d = json.load(open(os.environ["GITHUB_WORKSPACE"] + "/results.json"))
-          print("### probalog benchmarks\n")
-          print("commit `%s`\n" % d["commit"][:12])
-          print("| benchmark | wall (ms) | find-bindings | guard build | set-union | index |")
-          print("| --- | ---: | ---: | ---: | ---: | ---: |")
+          t = d["total"]
+          rows = ["| benchmark | wall (ms) | find-bindings | guard build | set-union | index |",
+                  "| --- | ---: | ---: | ---: | ---: | ---: |"]
           for b in d["benchmarks"]:
-              print("| %s | %.1f | %.1f | %.1f | %.1f | %.1f |" % (
+              rows.append("| %s | %.1f | %.1f | %.1f | %.1f | %.1f |" % (
                   b["name"], b["wall_ms"], b["find_bindings_ms"],
                   b["guard_build_ms"], b["set_union_ms"], b["index_ms"]))
-          t = d["total"]
-          print("| **total** | **%.1f** | %.1f | %.1f | %.1f | %.1f |" % (
+          rows.append("| **total** | **%.1f** | %.1f | %.1f | %.1f | %.1f |" % (
               t["wall_ms"], t["find_bindings_ms"], t["guard_build_ms"],
               t["set_union_ms"], t["index_ms"]))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("### probalog benchmarks\n\ncommit `%s`\n\n" % d["commit"][:12])
+              f.write("\n".join(rows) + "\n")
+          per = "%0A".join("%s: %.1f ms" % (b["name"], b["wall_ms"]) for b in d["benchmarks"])
+          print("::notice title=probalog benchmarks%%3A %.1f ms total::%s" % (t["wall_ms"], per))
           PY
 
       # Always keep the run's own numbers, so the workflow is useful even
@@ -268,13 +273,9 @@ jobs:
           ./compare-${{ matrix.tool }}.sh --quick --timeout 30 \
             2>&1 | tee "$RUNNER_TEMP/compare.txt"
 
-      - name: Summarise
+      # Step summaries only render on the run's Summary tab. This also
+      # raises an annotation -- notice, warning, or error on a disagreement
+      # -- so the outcome is visible from the run page and the job list.
+      - name: Report
         if: always()
-        run: |
-          {
-            echo "### probalog vs ${{ matrix.tool }}"
-            echo
-            echo '```'
-            tail -60 "$RUNNER_TEMP/compare.txt" 2>/dev/null || echo "(no output)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: python3 examples/bench/ci-report.py ${{ matrix.tool }} "$RUNNER_TEMP/compare.txt"
