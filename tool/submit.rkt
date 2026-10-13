@@ -1,5 +1,5 @@
 #lang racket/base
-(require "../lexer.rkt")
+(require "../lang/lexer.rkt")
 (provide repl-submit?)
 
 ;; Decides whether what the user has typed into the interactions area

@@ -11,10 +11,7 @@
 (define scribblings
   '(["scribblings/probalog.scrbl" (multi-page)]))
 
-;; `extra` holds development tools that are not part of the language and
-;; pull in heavier dependencies (plot), mirroring roulette's own layout.
-(define test-omit-paths '("extra" "examples"))
-(define compile-omit-paths '("extra"))
+(define test-omit-paths '("examples"))
 
 ;; dependencies
 

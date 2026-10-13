@@ -44,7 +44,6 @@
 			      guard-or
 			      guard-not
 			      guard-implies
-			      guard-iff
 			      guard-equiv?
 			      guard-prob
 			      guard-known-true?
@@ -369,11 +368,9 @@ weigh it with @racket[guard-prob].
 @deftogether[(@defproc[(guard-and [a any/c] [b any/c]) any/c]
 	      @defproc[(guard-or [a any/c] [b any/c]) any/c]
 	      @defproc[(guard-not [a any/c]) any/c]
-	      @defproc[(guard-implies [a any/c] [b any/c]) any/c]
-	      @defproc[(guard-iff [a any/c] [b any/c]) any/c])]{
+	      @defproc[(guard-implies [a any/c] [b any/c]) any/c])]{
   The propositional connectives.
-  @racket[guard-implies] is @racket[(guard-or (guard-not a) b)],
-  and @racket[guard-iff] is that both ways round.
+  @racket[guard-implies] is @racket[(guard-or (guard-not a) b)].
 }
 
 @defproc[(guard-equiv? [a any/c] [b any/c]) boolean?]{

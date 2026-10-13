@@ -3,7 +3,7 @@
 ;; The guard operations that `hash-set.rkt` builds sym-sets out of.
 (provide guard-true guard-false
          guard-var guard-and guard-or guard-not
-         guard-implies guard-iff
+         guard-implies
          guard-equiv? guard-prob
          guard-known-true? guard-known-false?
          reset-guards! add-reset-hook! guard-stats)
@@ -67,8 +67,6 @@
 (define (guard-not a)   (op!) (rsdd-not builder a))
 
 (define (guard-implies a b) (guard-or (guard-not a) b))
-(define (guard-iff a b)
-  (guard-and (guard-implies a b) (guard-implies b a)))
 
 ;; Logical equivalence: a comparison, not a search.
 (define (guard-equiv? a b) (op!) (rsdd-equal? builder a b))

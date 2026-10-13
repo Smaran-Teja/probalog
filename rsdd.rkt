@@ -1,18 +1,5 @@
 #lang racket/base
 
-;; FFI bindings to rsdd's BDD builder, and weighted model counting over
-;; the diagrams it produces.
-;;
-;; This is the whole of probalog's interface to the outside world. It was
-;; adapted from roulette's `roulette-lib/engine/rsdd.rkt`, cut down to what
-;; `guards.rkt` needs: no inference engine and no Rosette terms. The
-;; semiring abstraction is kept -- weighted model counting is the same
-;; traversal whatever the weights mean, and the alternatives are useful
-;; (gradients, MPE, log-space) even though probalog only uses reals.
-;;
-;; The shared library itself still comes from the `roulette-*` platform
-;; packages, which carry nothing but a compiled rsdd.
-
 (provide (struct-out semiring) make-semiring
          semiring-zero semiring-one
          boolean-semiring number-semiring log-semiring
@@ -94,6 +81,7 @@
 (define-rsdd rsdd-equal?
   (_fun _rsdd_bdd_builder _rsdd_bdd_ptr _rsdd_bdd_ptr -> _stdbool)
   #:c-id bdd_eq)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inspection

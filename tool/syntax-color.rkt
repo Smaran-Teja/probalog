@@ -1,5 +1,5 @@
 #lang racket/base
-(require "../lexer.rkt")
+(require "../lang/lexer.rkt")
 (provide get-syntax-token)
 
 ;; Syntax coloring for DrRacket, supplied through the language's

@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/class racket/list "../lexer.rkt")
+(require racket/class racket/list "../lang/lexer.rkt")
 (provide indent-probalog)
 
 ;; Line indentation for DrRacket, supplied through the

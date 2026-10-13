@@ -8,7 +8,7 @@
          racket/list
          racket/string
          rackunit
-         (only-in probalog/parser parse-probalog))
+         (only-in probalog/lang/parser parse-probalog))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; running programs

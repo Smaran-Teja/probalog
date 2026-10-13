@@ -6,7 +6,7 @@ probalog/lang/expander
 #:info probalog-info
 #:language-info '#(probalog/lang/lang-info get-info #f)
 
-(require "../parser.rkt")
+(require "parser.rkt")
 
 ;; Whole-body reader for plain `read`: consumes the entire port and
 ;; returns the list of parsed forms as data.

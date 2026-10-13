@@ -1,5 +1,5 @@
 #lang racket/base
-(require "../parser.rkt" "../lexer.rkt")
+(require "parser.rkt" "lexer.rkt")
 (provide configure)
 
 ;; Reading for the interactions area. Without this, a REPL submission
